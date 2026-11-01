@@ -175,8 +175,12 @@ t("reset clears answers and points, keeps players", () => {
   const s = G({ action: "state", code });
   assert.strictEqual(s.status, "lobby"); assert.deepStrictEqual(s.teams, { Blue: 0, Green: 0 }); assert.strictEqual(s.joinedCount, 5);
 });
-t("new room closes the old code", () => {
+t("new room closes the old code and starts fresh (no old players, answers or scores)", () => {
+  assert(rt.sheet("Submissions").length > 1 || rt.sheet("Players").length > 1);
   const c2 = T({ action: "createRoom", name: "5B" }).room.code;
+  const rows = n => rt.sheet(n).slice(1).filter(r => r.some(v => v !== ""));
+  assert.strictEqual(rows("Players").length, 0); assert.strictEqual(rows("Submissions").length, 0); assert.strictEqual(rows("Scores").length, 0);
+  assert.deepStrictEqual(T({ action: "teacherState" }).teams, { Blue: 0, Green: 0 });
   assert.notStrictEqual(c2, code);
   assert.strictEqual(G({ action: "state", code }).error, "ROOM_CLOSED");
   assert(G({ action: "state", code: c2 }).ok);

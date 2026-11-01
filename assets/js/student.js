@@ -161,6 +161,7 @@
 
   function leave(text) {
     poll.stop();
+    ["msBlue", "msGreen"].forEach(id => { $(id).dataset.v = 0; $(id).textContent = "0"; });   // no old scores in the next room
     closedStrikes = 0; missingStrikes = 0;
     LS.del("mba_session");
     session = null; state = null; currentQ = null;

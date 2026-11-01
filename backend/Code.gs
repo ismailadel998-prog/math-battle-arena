@@ -556,6 +556,11 @@ function createRoom_(p, now) {
       for (var i = 0; i < 5; i++) code += letters.charAt(Math.floor(Math.random() * letters.length));
     } while (used[code]);
     appendRows_('Rooms', [{ roomId: uid_('R'), code: code, name: name, status: 'lobby', createdAt: now, className: className }]);
+    // A new room starts completely fresh: old players, answers and scores are removed
+    // (only one room is active at a time, so nothing in use is lost).
+    rewriteAll_('Players', []);
+    rewriteAll_('Submissions', []);
+    rewriteAll_('Scores', []);
     var st = readSettings_();
     st.currentRoom = code; st.status = 'lobby'; st.qIndex = -1;
     st.qStartedAt = 0; st.gameStartedAt = 0; st.pausedAt = 0; st.endedAt = 0;

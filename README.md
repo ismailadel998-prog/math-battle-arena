@@ -108,6 +108,9 @@ You can change it there at any time. It is never in the website code.
 - Team totals update on every phone and on the arena screen within about 2–3 seconds.
 - **🏁 End game** shows the winning team celebration. **↺ Reset game** clears the answers so you can play again in the same room.
 
+> **Starting fresh:** pressing **Create new room** clears the previous game's players, answers and scores automatically.
+> Please don't delete rows in the Google Sheet by hand — the game reads it live, and deleting rows during a game removes students from it.
+
 ### Common situations
 | Situation | What to do |
 |---|---|
