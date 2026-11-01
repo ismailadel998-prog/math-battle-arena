@@ -131,21 +131,37 @@
     poll.start();
   }
 
+  // A student is only sent back to the join screen when the problem is confirmed by
+  // several polls in a row (about 8 seconds). One glitchy reply never kicks anyone out.
+  const STRIKES_TO_LEAVE = 3;
+  let closedStrikes = 0, missingStrikes = 0;
+
   async function refresh() {
     const sent = Date.now();
+    let s;
     try {
-      const s = await MBA.apiGet("state", { code: session.code });
-      MBA.clock.sync(s.serverNow, sent);
-      state = s; stateAt = Date.now();
-      render();
+      s = await MBA.apiGet("state", { code: session.code });
     } catch (e) {
-      if (e.code === "ROOM_CLOSED") { leave("Your teacher closed this room. Enter the new room code."); return; }
+      if (e.code === "ROOM_CLOSED") {
+        if (++closedStrikes >= STRIKES_TO_LEAVE) leave("Your teacher closed this room. Enter the new room code.");
+        return;
+      }
       throw e;
     }
+    closedStrikes = 0;
+    if (!s.players.some(p => p.id === session.id)) {
+      if (++missingStrikes >= STRIKES_TO_LEAVE) leave("Your name was released by the teacher. Please join again.");
+      return;                     // keep showing the last good screen meanwhile
+    }
+    missingStrikes = 0;
+    MBA.clock.sync(s.serverNow, sent);
+    state = s; stateAt = Date.now();
+    render();
   }
 
   function leave(text) {
     poll.stop();
+    closedStrikes = 0; missingStrikes = 0;
     LS.del("mba_session");
     session = null; state = null; currentQ = null;
     $("overlay").hidden = true;
@@ -162,7 +178,7 @@
     const s = state;
     if (!s) return;
     const me = s.players.find(p => p.id === session.id);
-    if (!me) { leave("Your name was released by the teacher. Please join again."); return; }
+    if (!me) return;
     if (me.team !== session.team) {
       const firstReveal = !session.team && me.team;
       session.team = me.team; LS.set("mba_session", session); enterGame();

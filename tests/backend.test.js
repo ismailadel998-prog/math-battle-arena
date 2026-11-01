@@ -269,6 +269,14 @@ t("Start without dividing first: everyone still gets a team", () => {
   const t2 = G({ action: "state", code: c }).teams;
   assert.strictEqual(t2[other], 100); assert.strictEqual(t2[me.team], 0);
 });
+t("every locked write is flushed to the sheet before the lock is released", () => {
+  const before = rt.flushCount();
+  const c = T({ action: "teacherState" }).room.code;
+  T({ action: "control", cmd: "reset" });
+  assert(rt.flushCount() > before);
+  // settings are overwritten in place: the GameSettings sheet never becomes empty
+  assert.strictEqual(rt.sheet("GameSettings").filter(r => r[0]).length, 12);   // header + 11 settings
+});
 t("logout invalidates the token", () => { T({ action: "logout" }); assert.strictEqual(T({ action: "teacherState" }).error, "AUTH"); });
 
 console.log("\n" + passed + " backend tests passed");

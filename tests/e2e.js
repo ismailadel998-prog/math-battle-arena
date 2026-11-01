@@ -263,6 +263,14 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await teacher.click('[data-cmd="next"]');
   await studs[2].waitForFunction(() => document.getElementById("qText").textContent.includes("Layla"));
 
+  // brief glitches must not kick anyone out
+  for (const mode of ["closed", "missing"]) {
+    await fetch(API + "/__glitch?mode=" + mode + "&n=6");          // ~2 bad replies per student
+    await new Promise(r => setTimeout(r, 7000));
+    for (const p of studs) assert(await p.isVisible("#scr-question.active"), "student was kicked by a '" + mode + "' glitch");
+  }
+  ok("short server glitches (room closed / player missing) do not kick students out");
+
   // dashboard protection
   const outsider = await mk();
   await outsider.goto(WEB + "teacher.html");

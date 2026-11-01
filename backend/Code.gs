@@ -180,9 +180,11 @@ function updateRow_(name, o) {
 
 /** Replace every data row of a sheet with objs. */
 function rewriteAll_(name, objs) {
+  // Overwrite in place first, then clear only leftover rows, so a reader never sees an empty sheet.
   var s = sheet_(name), h = SCHEMA[name], last = s.getLastRow();
-  if (last >= 2) s.getRange(2, 1, last - 1, h.length).clearContent();
   if (objs.length) s.getRange(2, 1, objs.length, h.length).setValues(objs.map(function (o) { return toRow_(name, o); }));
+  var extra = last - 1 - objs.length;
+  if (extra > 0) s.getRange(objs.length + 2, 1, extra, h.length).clearContent();
 }
 
 function readSettings_() {
@@ -206,14 +208,26 @@ function writeSettings_(st) {
   rewriteAll_('GameSettings', Object.keys(DEFAULT_SETTINGS).map(function (k) { return { key: k, value: st[k] }; }));
 }
 
+var IN_LOCK_ = false, BUMP_PENDING_ = false;
+
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
   lock.waitLock(28000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  IN_LOCK_ = true; BUMP_PENDING_ = false;
+  try { return fn(); }
+  finally {
+    // Apps Script buffers sheet writes. Flush BEFORE releasing the lock, otherwise the next request
+    // can read old data (and e.g. two simultaneous joins would write to the same row).
+    try { SpreadsheetApp.flush(); } catch (e) { }
+    if (BUMP_PENDING_) doBump_();      // invalidate the cache only after the data is really saved
+    IN_LOCK_ = false; BUMP_PENDING_ = false;
+    lock.releaseLock();
+  }
 }
 
 /** Invalidate the cached public snapshot (called after every change). */
-function bump_() {
+function bump_() { if (IN_LOCK_) BUMP_PENDING_ = true; else doBump_(); }
+function doBump_() {
   CacheService.getScriptCache().put('ver', String(Date.now()) + Math.random().toString(36).slice(2, 7), 21600);
 }
 

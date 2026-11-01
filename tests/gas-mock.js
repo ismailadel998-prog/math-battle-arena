@@ -52,7 +52,7 @@ function createRuntime() {
   const ss = new Spreadsheet();
   const cache = new Map();
   const props = new Map();
-  let timeOffset = 0;
+  let timeOffset = 0, flushes = 0;
   const RealDate = Date;
   class FakeDate extends RealDate {
     constructor(...a) { if (a.length) super(...a); else super(RealDate.now() + timeOffset); }
@@ -62,7 +62,7 @@ function createRuntime() {
   const sandbox = {
     Date: FakeDate, Math, JSON, String, Number, Array, Object, isFinite, isNaN, Error,
     console,
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+    SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush: () => { flushes++; } },
     CacheService: { getScriptCache: () => ({
       get: cacheGet,
       getAll: ks => { const o = {}; ks.forEach(k => { const v = cacheGet(k); if (v !== null) o[k] = v; }); return o; },
@@ -79,6 +79,7 @@ function createRuntime() {
   return {
     sandbox, ss, props,
     advance(ms) { timeOffset += ms; },
+    flushCount: () => flushes,
     doGet: params => JSON.parse(sandbox.doGet({ parameter: params }).getContent()),
     doPost: body => JSON.parse(sandbox.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }).getContent()),
     sheet: name => { const s = ss.getSheetByName(name); return s ? s.data : []; }

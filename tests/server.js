@@ -14,6 +14,7 @@ rt.sandbox.setup();
 const ROOT = path.join(__dirname, "..");
 const pending = new Map();
 let n = 0;
+let glitch = { mode: "", left: 0 };   // test hook: make the next N "state" replies look broken
 
 const API_PORT = Number(process.env.API_PORT || 8787), WEB_PORT = Number(process.env.WEB_PORT || 8080);
 
@@ -21,11 +22,17 @@ http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   const cors = { "Access-Control-Allow-Origin": "*" };
   if (u.pathname === "/__advance") { rt.advance(Number(u.searchParams.get("ms"))); res.writeHead(200, cors); return res.end("ok"); }
+  if (u.pathname === "/__glitch") { glitch = { mode: u.searchParams.get("mode"), left: Number(u.searchParams.get("n")) }; res.writeHead(200, cors); return res.end("ok"); }
   if (u.pathname === "/__sheet") { res.writeHead(200, { ...cors, "Content-Type": "application/json" }); return res.end(JSON.stringify(rt.sheet(u.searchParams.get("name")))); }
   if (req.method === "OPTIONS") { res.writeHead(405); return res.end(); }   // Apps Script cannot answer preflight
   if (u.pathname === "/exec" && req.method === "GET") {
     const params = Object.fromEntries(u.searchParams);
-    const out = JSON.stringify(rt.doGet(params));
+    let reply = rt.doGet(params);
+    if (params.action === "state" && glitch.left > 0) {
+      glitch.left--;
+      reply = glitch.mode === "closed" ? { ok: false, error: "ROOM_CLOSED", message: "glitch" } : { ...reply, players: [] };
+    }
+    const out = JSON.stringify(reply);
     const k = "g" + (++n); pending.set(k, out);
     res.writeHead(302, { ...cors, Location: "http://localhost:" + API_PORT + "/echo?k=" + k }); return res.end();
   }
