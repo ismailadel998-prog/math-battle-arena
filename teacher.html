@@ -73,6 +73,24 @@
                 <div><div class="eyebrow">Game clock</div><div class="kpi" id="gcGT">7:00</div></div>
                 <div><div class="eyebrow">Answered</div><div class="kpi" id="gcAns">0/0</div></div>
               </div>
+              <div class="row" style="margin-bottom:12px">
+                <label class="muted" style="font-weight:800">⏱ Time per question
+                  <select id="qTime" class="mini" style="padding:8px;margin-inline-start:6px">
+                    <option value="30">30 seconds</option><option value="45">45 seconds</option><option value="60">1 minute</option>
+                    <option value="90">1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option>
+                  </select></label>
+                <label class="muted" style="font-weight:800" title="Extra answer time after the countdown ends. Students do not see it.">🎁 Hidden bonus
+                  <select id="bTime" class="mini" style="padding:8px;margin-inline-start:6px">
+                    <option value="0">none</option><option value="15">15 seconds</option><option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option><option value="60">1 minute</option>
+                  </select></label>
+                <label class="muted" style="font-weight:800">🕒 Game time
+                  <select id="gTime" class="mini" style="padding:8px;margin-inline-start:6px">
+                    <option value="300">5 minutes</option><option value="420">7 minutes</option><option value="600">10 minutes</option>
+                    <option value="720">12 minutes</option><option value="900">15 minutes</option><option value="1200">20 minutes</option>
+                  </select></label>
+              </div>
+              <p class="muted" id="pointsHint" style="margin:-4px 0 12px;font-size:.88rem"></p>
               <div class="ctl">
                 <button class="btn btn-green" data-cmd="start">▶ Start game</button>
                 <button class="btn btn-gold" data-cmd="pause">⏸ Pause</button>

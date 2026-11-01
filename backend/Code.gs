@@ -31,7 +31,7 @@ var SCHEMA = {
 
 var DEFAULT_SETTINGS = {
   currentRoom: '', status: 'lobby', qIndex: -1, qStartedAt: 0, gameStartedAt: 0,
-  pausedAt: 0, endedAt: 0, gameId: '', autoMark: true, gameSeconds: CFG.GAME_SECONDS, questionSeconds: CFG.QUESTION_SECONDS
+  pausedAt: 0, endedAt: 0, gameId: '', autoMark: true, gameSeconds: CFG.GAME_SECONDS, questionSeconds: CFG.QUESTION_SECONDS, bonusSeconds: 0
 };
 
 var DEFAULT_QUESTIONS = [
@@ -101,6 +101,7 @@ function route_(p) {
     case 'setTeam':      requireTeacher_(p); return setTeam_(p);
     case 'divideTeams':  requireTeacher_(p); return divideTeams_(p);
     case 'setAutoMark':  requireTeacher_(p); return setAutoMark_(p, now);
+    case 'setTimes':     requireTeacher_(p); return setTimes_(p);
     case 'removeStudent':requireTeacher_(p); return removeStudent_(p);
     case 'releaseStudent': requireTeacher_(p); return releaseStudent_(p);
     default: throw err_('UNKNOWN', 'Unknown action: ' + a);
@@ -192,7 +193,7 @@ function readSettings_() {
   Object.keys(DEFAULT_SETTINGS).forEach(function (k) { st[k] = DEFAULT_SETTINGS[k]; });
   readRows_('GameSettings').forEach(function (r) { st[String(r.key)] = r.value; });
   var qi = st.qIndex;
-  ['qStartedAt', 'gameStartedAt', 'pausedAt', 'endedAt', 'gameSeconds', 'questionSeconds']
+  ['qStartedAt', 'gameStartedAt', 'pausedAt', 'endedAt', 'gameSeconds', 'questionSeconds', 'bonusSeconds']
     .forEach(function (k) { st[k] = Number(st[k]) || 0; });
   st.qIndex = (qi === '' || qi === null || isNaN(Number(qi))) ? -1 : Number(qi);
   st.currentRoom = String(st.currentRoom || '');
@@ -254,13 +255,21 @@ function normTeam_(t) {
 }
 
 /** Speed-based points for a CORRECT answer. */
-function pointsFor_(seconds) {
-  var s = Number(seconds);
-  if (s <= 10) return 100;
-  if (s <= 20) return 80;
-  if (s <= 30) return 60;
-  if (s <= 45) return 40;
-  if (s <= 60) return 20;
+/**
+ * Speed-based points for a CORRECT answer. The bands follow the question time:
+ * with 60 s they are exactly 0-10=100, 11-20=80, 21-30=60, 31-45=40, 46-60=20;
+ * with 120 s they become 0-20, 21-40, 41-60, 61-90, 91-120.
+ */
+/** Total time answers are accepted: the visible countdown + the hidden bonus. */
+function windowSec_(st) { return st.questionSeconds + (st.bonusSeconds || 0); }
+
+function pointsFor_(seconds, questionSeconds) {
+  var s = Number(seconds), k = (Number(questionSeconds) || 60) / 60;
+  if (s <= 10 * k) return 100;
+  if (s <= 20 * k) return 80;
+  if (s <= 30 * k) return 60;
+  if (s <= 45 * k) return 40;
+  if (s <= 60 * k) return 20;
   return 0;
 }
 
@@ -269,7 +278,7 @@ function timing_(st, now) {
   var qElapsed = (st.qIndex >= 0 && st.qStartedAt) ? Math.max(0, eff - st.qStartedAt) : 0;
   var gElapsed = st.gameStartedAt ? Math.max(0, eff - st.gameStartedAt) : 0;
   var gameOver = gElapsed >= st.gameSeconds * 1000;
-  var qOver = qElapsed >= st.questionSeconds * 1000;
+  var qOver = qElapsed >= windowSec_(st) * 1000;          // includes the hidden bonus
   return {
     qElapsedMs: qElapsed, gameElapsedMs: gElapsed, gameTimeUp: gameOver, questionTimeUp: qOver,
     acceptingAnswers: st.status === 'running' && !gameOver && !qOver
@@ -388,7 +397,7 @@ function publicState_(code, now) {
     ok: true, serverNow: now, room: snap.room, status: st.status, gameId: st.gameId, autoMark: st.autoMark,
     qIndex: st.qIndex, qCount: snap.questions.length,
     question: showQ ? snap.questions[st.qIndex] : null,
-    qElapsedMs: t.qElapsedMs, qSeconds: st.questionSeconds,
+    qElapsedMs: t.qElapsedMs, qSeconds: st.questionSeconds, bonusSeconds: st.bonusSeconds,
     gameElapsedMs: t.gameElapsedMs, gameSeconds: st.gameSeconds,
     gameTimeUp: t.gameTimeUp, questionTimeUp: t.questionTimeUp, acceptingAnswers: t.acceptingAnswers,
     submittedIds: ids, submittedCount: ids.length, joinedCount: snap.players.length,
@@ -466,15 +475,15 @@ function submit_(p, now) {
       }
     }
     var t = timing_(st, now);
-    if (t.qElapsedMs > st.questionSeconds * 1000 + CFG.GRACE_MS || t.gameElapsedMs > st.gameSeconds * 1000 + CFG.GRACE_MS) {
+    if (t.qElapsedMs > windowSec_(st) * 1000 + CFG.GRACE_MS || t.gameElapsedMs > st.gameSeconds * 1000 + CFG.GRACE_MS) {
       throw err_('TIME_UP', "Time's up for this question.");
     }
-    var seconds = Math.min(st.questionSeconds, Math.floor(t.qElapsedMs / 1000));
+    var seconds = Math.min(windowSec_(st), Math.floor(t.qElapsedMs / 1000));
     var team = str_(player.team);
     var status = 'pending', points = 0, reviewedAt = '';
     if (st.autoMark) {
       var key = answerKey_(q);
-      if (key) { status = ans === key ? 'correct' : 'incorrect'; points = status === 'correct' ? pointsFor_(seconds) : 0; reviewedAt = now; }
+      if (key) { status = ans === key ? 'correct' : 'incorrect'; points = status === 'correct' ? pointsFor_(seconds, windowSec_(st)) : 0; reviewedAt = now; }
     }
     appendRows_('Submissions', [{
       submissionId: uid_('X'), roomCode: code, qIndex: q, studentId: sid, name: str_(player.name), team: team,
@@ -621,7 +630,7 @@ function review_(p, now) {
     readRows_('Submissions').forEach(function (r) { if (str_(r.submissionId) === id) x = r; });
     if (!x) throw err_('NOT_FOUND', 'Submission not found.');
     x.status = status;
-    x.points = status === 'correct' ? pointsFor_(x.seconds) : 0;   // points are SET, never added: no double scoring
+    x.points = status === 'correct' ? pointsFor_(x.seconds, windowSec_(st)) : 0;   // points are SET, never added: no double scoring
     x.manual = false;
     x.reviewedAt = status === 'pending' ? '' : now;
     updateRow_('Submissions', x);
@@ -640,7 +649,7 @@ function bulkReview_(p, now) {
     all.forEach(function (x) {
       if (str_(x.roomCode) !== st.currentRoom || Number(x.qIndex) !== q || str_(x.status) !== 'pending') return;
       x.status = up_(x.answer) === ans ? 'correct' : 'incorrect';
-      x.points = x.status === 'correct' ? pointsFor_(x.seconds) : 0;
+      x.points = x.status === 'correct' ? pointsFor_(x.seconds, windowSec_(st)) : 0;
       x.manual = false; x.reviewedAt = now;
       updateRow_('Submissions', x);
       changed++;
@@ -808,7 +817,7 @@ function setAutoMark_(p, now) {
         var key = keys[Number(x.qIndex)];
         if (['A', 'B', 'C', 'D'].indexOf(key) < 0) return;
         x.status = up_(x.answer) === key ? 'correct' : 'incorrect';
-        x.points = x.status === 'correct' ? pointsFor_(x.seconds) : 0;
+        x.points = x.status === 'correct' ? pointsFor_(x.seconds, windowSec_(st)) : 0;
         x.manual = false; x.reviewedAt = now;
         updateRow_('Submissions', x);
         changed++;
@@ -817,5 +826,19 @@ function setAutoMark_(p, now) {
     }
     bump_();
     return { ok: true, autoMark: on, changed: changed };
+  });
+}
+
+/** Time per question and total game time, chosen in the dashboard before a game starts. */
+function setTimes_(p) {
+  var q = Math.round(Number(p.questionSeconds)), g = Math.round(Number(p.gameSeconds)), b = Math.round(Number(p.bonusSeconds) || 0);
+  if (!(q >= 10 && q <= 600) || !(g >= 60 && g <= 3600) || !(b >= 0 && b <= 300)) throw err_('BAD_REQUEST', 'Choose a time per question (10 s to 10 min), a bonus (0 to 5 min) and a game time (1 to 60 min).');
+  return withLock_(function () {
+    var st = readSettings_();
+    if (st.status === 'running' || st.status === 'paused') throw err_('BAD_STATE', 'Change the times before you start (or after Reset).');
+    st.questionSeconds = q; st.gameSeconds = g; st.bonusSeconds = b;
+    writeSettings_(st);
+    bump_();
+    return { ok: true, questionSeconds: q, gameSeconds: g, bonusSeconds: b };
   });
 }

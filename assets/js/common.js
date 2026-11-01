@@ -62,10 +62,11 @@
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function pointsFor(seconds) {
-    const s = Number(seconds);
-    if (s <= 10) return 100; if (s <= 20) return 80; if (s <= 30) return 60;
-    if (s <= 45) return 40; if (s <= 60) return 20; return 0;
+  /** Same rule as the server: the speed bands stretch with the time per question (60 s = original table). */
+  function pointsFor(seconds, questionSeconds) {
+    const s = Number(seconds), k = (Number(questionSeconds) || 60) / 60;
+    if (s <= 10 * k) return 100; if (s <= 20 * k) return 80; if (s <= 30 * k) return 60;
+    if (s <= 45 * k) return 40; if (s <= 60 * k) return 20; return 0;
   }
 
   const TEAM = {
@@ -133,7 +134,8 @@
     const frac = totalMs ? Math.max(0, Math.min(1, remainingMs / totalMs)) : 0;
     bar.setAttribute("stroke-dasharray", c.toFixed(1));
     bar.setAttribute("stroke-dashoffset", (c * (1 - frac)).toFixed(1));
-    num.textContent = Math.max(0, Math.ceil(remainingMs / 1000));
+    const secs = Math.max(0, Math.ceil(remainingMs / 1000));
+    num.textContent = secs > 60 ? Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0") : secs;
     el.classList.toggle("warn", remainingMs <= 10000 && remainingMs > 0);
   }
 

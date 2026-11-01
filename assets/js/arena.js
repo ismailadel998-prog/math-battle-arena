@@ -97,6 +97,9 @@
       const q = s.qSeconds * 1000 - (s.qElapsedMs + drift);
       const g = s.gameSeconds * 1000 - (s.gameElapsedMs + drift);
       MBA.setRing($("aRing"), Math.min(q, g), s.qSeconds * 1000);
+      if (q <= 0 && q + (s.bonusSeconds || 0) * 1000 > 0 && g > 0) {   // hidden bonus: no numbers shown
+        $("aRing").classList.remove("warn"); $("aRing").querySelector(".num").textContent = "⏳";
+      }
       $("aClock").textContent = "GAME " + MBA.fmtClock(g);
     } else {
       MBA.setRing($("aRing"), s.status === "ended" ? 0 : s.qSeconds * 1000, s.qSeconds * 1000);

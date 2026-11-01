@@ -73,6 +73,24 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   assert(/^[A-Z]{5}$/.test(code));
   ok("room created with code " + code);
 
+  // timer dropdowns: 1.5 min visible + 30 s hidden bonus -> game time grows to fit, points bands stretch over 2 min
+  await teacher.selectOption("#qTime", "90");
+  await new Promise(r => setTimeout(r, 1500));
+  await teacher.selectOption("#bTime", "30");
+  await teacher.waitForFunction(() => document.getElementById("gTime").value === "720" && document.getElementById("pointsHint").textContent.includes("0–20 s = 100") && document.getElementById("pointsHint").textContent.includes("students see 1:30"), null, { timeout: 15000 });
+  await new Promise(r => setTimeout(r, 2500));
+  const st120 = await (await fetch(API + "/exec?action=state&code=" + code)).json();
+  assert.strictEqual(st120.qSeconds, 90); assert.strictEqual(st120.bonusSeconds, 30); assert.strictEqual(st120.gameSeconds, 720);
+  ok("teacher sets 1:30 per question + 30 s hidden bonus: game time 12 min, points 0–20 s = 100 …");
+  await teacher.selectOption("#qTime", "60");
+  await new Promise(r => setTimeout(r, 1500));
+  await teacher.selectOption("#bTime", "0");
+  await new Promise(r => setTimeout(r, 1500));
+  await teacher.selectOption("#gTime", "420");
+  await teacher.waitForFunction(() => document.getElementById("pointsHint").textContent.includes("0–10 s = 100"));
+  await new Promise(r => setTimeout(r, 2500));
+  assert.strictEqual((await (await fetch(API + "/exec?action=state&code=" + code)).json()).qSeconds, 60);
+
   // ---------- arena ----------
   const arena = await mk({ viewport: { width: 1600, height: 900 } });
   await arena.goto(WEB + "arena.html?room=" + code);
@@ -319,6 +337,29 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await new Promise(r => setTimeout(r, 1200));
   await shot(arena, "10-arena-winner");
   await shot(studs[1], "11-student-end");
+
+  // ---------- hidden bonus in a real game ----------
+  teacher.once("dialog", d => d.accept());
+  await teacher.click('[data-cmd="reset"]');
+  await teacher.waitForFunction(() => !document.getElementById("qTime").disabled);
+  await teacher.selectOption("#qTime", "90"); await new Promise(r => setTimeout(r, 1500));
+  await teacher.selectOption("#bTime", "30"); await new Promise(r => setTimeout(r, 2500));
+  await teacher.click('[data-cmd="start"]');
+  await studs[3].waitForSelector("#scr-question.active");
+  await studs[3].waitForFunction(() => document.querySelector("#qRing .num").textContent === "1:30" || document.querySelector("#qRing .num").textContent === "1:29");
+  await advance(95000);                                   // 95 s: visible countdown over, bonus running
+  await studs[3].waitForFunction(() => document.querySelector("#qRing .num").textContent === "⏳", null, { timeout: 15000 });
+  await arena.waitForFunction(() => document.querySelector("#aRing .num").textContent === "⏳", null, { timeout: 15000 });
+  assert(!(await studs[3].isDisabled('.ans[data-l="B"]')), "answers still open during the bonus");
+  assert((await studs[3].textContent("#qStatus")).includes("Last chance"));
+  await teacher.waitForFunction(() => document.getElementById("gcQT").textContent.includes("🎁"), null, { timeout: 15000 });
+  await shot(studs[3], "12-student-hidden-bonus-phone");
+  await studs[3].click('.ans[data-l="B"]');
+  await studs[3].waitForFunction(() => document.getElementById("qStatus").textContent.includes("locked"));
+  ok("hidden bonus: students see 1:30 then ⏳ (no numbers), can still answer; teacher sees 🎁 bonus countdown");
+  await advance(30000);                                   // 125 s: closed
+  await studs[0].waitForFunction(() => document.getElementById("qStatus").textContent.includes("Time's up"), null, { timeout: 15000 });
+  ok("after the hidden 30 s, answers close");
 
   assert.deepStrictEqual(errors.filter(e => !/fonts\.g|Failed to load resource/.test(e)), []);
   ok("no JavaScript errors in any page");

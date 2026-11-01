@@ -308,11 +308,17 @@
     const s = state;
     if (!s || (s.status !== "running" && s.status !== "paused")) return;
     const drift = s.status === "running" ? Date.now() - stateAt : 0;
-    const qLeft = s.qSeconds * 1000 - (s.qElapsedMs + drift);
+    const qLeft = s.qSeconds * 1000 - (s.qElapsedMs + drift);          // visible countdown
+    const totalLeft = qLeft + (s.bonusSeconds || 0) * 1000;           // + hidden bonus
     const gLeft = s.gameSeconds * 1000 - (s.gameElapsedMs + drift);
     MBA.setRing($("qRing"), Math.min(qLeft, gLeft), s.qSeconds * 1000);
+    const inBonus = qLeft <= 0 && totalLeft > 0 && gLeft > 0 && s.acceptingAnswers;
+    if (inBonus) {                                                    // no numbers during the hidden bonus
+      const ring = $("qRing"); ring.classList.remove("warn"); ring.querySelector(".num").textContent = "⏳";
+      if (!$("answers").classList.contains("locked")) $("qStatus").textContent = "⚡ Last chance — answer now!";
+    }
     $("gClock").textContent = "Game " + MBA.fmtClock(gLeft);
-    if (s.status === "running" && s.acceptingAnswers && (qLeft <= 0 || gLeft <= 0)) {
+    if (s.status === "running" && s.acceptingAnswers && (totalLeft <= 0 || gLeft <= 0)) {
       s.acceptingAnswers = false;
       if (gLeft <= 0) s.gameTimeUp = true;
       render();

@@ -120,7 +120,7 @@ t("undo and manual adjustment", () => {
 
 t("points table boundaries 10/11/20/21/30/31/45/46/60", () => {
   const f = rt.sandbox.pointsFor_;
-  assert.deepStrictEqual([0, 10, 11, 20, 21, 30, 31, 45, 46, 60, 61].map(f), [100, 100, 80, 80, 60, 60, 40, 40, 20, 20, 0]);
+  assert.deepStrictEqual([0, 10, 11, 20, 21, 30, 31, 45, 46, 60, 61].map(x => f(x, 60)), [100, 100, 80, 80, 60, 60, 40, 40, 20, 20, 0]);
 });
 
 t("question closes after 60 s", () => {
@@ -275,7 +275,52 @@ t("every locked write is flushed to the sheet before the lock is released", () =
   T({ action: "control", cmd: "reset" });
   assert(rt.flushCount() > before);
   // settings are overwritten in place: the GameSettings sheet never becomes empty
-  assert.strictEqual(rt.sheet("GameSettings").filter(r => r[0]).length, 12);   // header + 11 settings
+  assert.strictEqual(rt.sheet("GameSettings").filter(r => r[0]).length, 13);   // header + 12 settings
+});
+t("2-minute questions: times can be set, points bands stretch with the time", () => {
+  const f = rt.sandbox.pointsFor_;
+  assert.deepStrictEqual([0, 20, 21, 40, 41, 60, 61, 90, 91, 120, 121].map(x => f(x, 120)), [100, 100, 80, 80, 60, 60, 40, 40, 20, 20, 0]);
+  T({ action: "control", cmd: "reset" });
+  const r = T({ action: "setTimes", questionSeconds: 120, gameSeconds: 720 });
+  assert(r.ok);
+  const c = T({ action: "teacherState" }).room.code;
+  assert.strictEqual(G({ action: "state", code: c }).qSeconds, 120);
+  assert.strictEqual(G({ action: "state", code: c }).gameSeconds, 720);
+  T({ action: "setAutoMark", on: true });
+  T({ action: "control", cmd: "start" });
+  assert.strictEqual(T({ action: "setTimes", questionSeconds: 60, gameSeconds: 420 }).error, "BAD_STATE", "cannot change during a game");
+  const pl = G({ action: "state", code: c }).players;
+  rt.advance(85000);                                   // 85 s: still open with 2-minute questions
+  const ans = P({ action: "submit", code: c, studentId: pl[0].id, deviceToken: "dev-auto0000", qIndex: 0, answer: "B" });
+  assert(ans.ok, JSON.stringify(ans)); assert.strictEqual(ans.seconds, 85);
+  assert.strictEqual(T({ action: "teacherState" }).submissions.find(x => x.studentId === pl[0].id && x.qIndex === 0).points, 40);
+  rt.advance(40000);                                   // 125 s: closed
+  assert.strictEqual(P({ action: "submit", code: c, studentId: pl[1].id, deviceToken: "dev-auto0001", qIndex: 0, answer: "B" }).error, "TIME_UP");
+  T({ action: "control", cmd: "reset" });
+  T({ action: "setTimes", questionSeconds: 60, gameSeconds: 420 });
+  T({ action: "setAutoMark", on: false });
+});
+t("hidden bonus: students see 90 s, answers accepted until 120 s", () => {
+  const c = T({ action: "teacherState" }).room.code;
+  T({ action: "control", cmd: "reset" });
+  assert(T({ action: "setTimes", questionSeconds: 90, bonusSeconds: 30, gameSeconds: 720 }).ok);
+  T({ action: "setAutoMark", on: true });
+  T({ action: "control", cmd: "start" });
+  let st = G({ action: "state", code: c });
+  assert.strictEqual(st.qSeconds, 90, "students are shown 1:30"); assert.strictEqual(st.bonusSeconds, 30);
+  const pl = st.players;
+  rt.advance(100000);                                  // 100 s: visible timer is over, bonus still open
+  st = G({ action: "state", code: c });
+  assert.strictEqual(st.acceptingAnswers, true);
+  const a = P({ action: "submit", code: c, studentId: pl[0].id, deviceToken: "dev-auto0000", qIndex: 0, answer: "B" });
+  assert(a.ok, JSON.stringify(a)); assert.strictEqual(a.seconds, 100);
+  assert.strictEqual(T({ action: "teacherState" }).submissions.find(x => x.studentId === pl[0].id && x.qIndex === 0).points, 20, "91-120 s = 20");
+  rt.advance(25000);                                   // 125 s: bonus over
+  assert.strictEqual(G({ action: "state", code: c }).acceptingAnswers, false);
+  assert.strictEqual(P({ action: "submit", code: c, studentId: pl[1].id, deviceToken: "dev-auto0001", qIndex: 0, answer: "B" }).error, "TIME_UP");
+  T({ action: "control", cmd: "reset" });
+  T({ action: "setTimes", questionSeconds: 60, bonusSeconds: 0, gameSeconds: 420 });
+  T({ action: "setAutoMark", on: false });
 });
 t("logout invalidates the token", () => { T({ action: "logout" }); assert.strictEqual(T({ action: "teacherState" }).error, "AUTH"); });
 

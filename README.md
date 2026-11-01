@@ -90,12 +90,16 @@ You can change it there at any time. It is never in the website code.
 
 ### During the game
 - Each question gives students 60 seconds. The whole game lasts 7 minutes. Press **Next ▶** to move on. Pause, Resume and Next are always at the top of the dashboard.
+- **⏱ Timers (Game tab, before you start):** *Time per question* is the countdown students see. *Hidden bonus* gives extra answer
+  time after the countdown reaches 0; students only see ⏳ and "Last chance", while your dashboard shows 🎁 and the seconds left.
+  Press **Next** whenever you are ready. *Game time* is the total clock. The speed points below stretch over the whole answer time
+  (countdown + bonus): with 1:30 + 30 s they are 0–20 s = 100, 21–40 = 80, 41–60 = 60, 61–90 = 40, 91–120 = 20.
 - **⚡ Automatic marking (ON by default):** each answer is scored the moment it is submitted, using the answer key in the **Questions**
   sheet, and team totals update right away. Turn the switch OFF (Game or Answer review tab) to mark answers yourself; turning it back ON
   scores any answers still waiting.
 - **✅ Answer review tab:** each answer shows the student, team, chosen answer and seconds taken. Press **✓ Correct** or **✗ Incorrect** for each one,
   or use the button that marks every pending answer using the answer key. **↺ Undo** puts an answer back to pending. **Set** gives custom points.
-- Points per correct answer:
+- Points per correct answer with a 1-minute timer and no bonus:
 
   | Time | 0–10 s | 11–20 s | 21–30 s | 31–45 s | 46–60 s | Incorrect |
   |---|---|---|---|---|---|---|

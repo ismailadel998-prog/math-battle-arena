@@ -109,12 +109,47 @@
     $("tbStatus").className = "status-pill " + st.status;
     $("tbRoom").textContent = room ? "Room " + room.code : "";
     $("tbArena").href = arenaLink(room && room.code);
-    renderAuto(); renderClasses(); renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
+    renderTimes(); renderAuto(); renderClasses(); renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
     MBA.animateNumber($("lsBlue"), T.teams.Blue);
     MBA.animateNumber($("lsGreen"), T.teams.Green);
     const pending = T.submissions.filter(s => s.status === "pending").length;
     $("pendingBadge").hidden = !pending; $("pendingBadge").textContent = pending;
   }
+
+  function addOption(sel, v) {
+    if (![...sel.options].some(o => Number(o.value) === v)) {
+      const o = document.createElement("option"); o.value = v; o.textContent = v % 60 ? v + " seconds" : (v / 60) + " minutes"; sel.appendChild(o);
+    }
+  }
+  function renderTimes() {
+    const st = T.settings, q = st.questionSeconds, g = st.gameSeconds, bonus = st.bonusSeconds || 0;
+    const qs = $("qTime"), gs = $("gTime"), bs = $("bTime");
+    addOption(qs, q); addOption(gs, g); addOption(bs, bonus);
+    if (document.activeElement !== qs) qs.value = String(q);
+    if (document.activeElement !== gs) gs.value = String(g);
+    if (document.activeElement !== bs) bs.value = String(bonus);
+    const locked = st.status === "running" || st.status === "paused";
+    qs.disabled = gs.disabled = bs.disabled = locked;
+    const win = q + bonus, k = win / 60, b = [10, 20, 30, 45, 60].map(x => Math.round(x * k));
+    const fit = Math.floor(g / win);
+    $("pointsHint").textContent = "Points: 0–" + b[0] + " s = 100 · " + (b[0] + 1) + "–" + b[1] + " = 80 · " + (b[1] + 1) + "–" + b[2] + " = 60 · " +
+      (b[2] + 1) + "–" + b[3] + " = 40 · " + (b[3] + 1) + "–" + b[4] + " = 20" +
+      (bonus ? "   (students see " + MBA.fmtClock(q * 1000) + "; answers accepted until " + MBA.fmtClock(win * 1000) + ")" : "") +
+      (fit < T.questions.length ? "   ⚠️ Only about " + fit + " of " + T.questions.length + " questions fit in the game time." : "");
+  }
+  async function saveTimes() {
+    try {
+      await call("setTimes", { questionSeconds: Number($("qTime").value), bonusSeconds: Number($("bTime").value), gameSeconds: Number($("gTime").value) }, "Timer saved");
+    } catch (e) { }
+  }
+  function fitGameTime() {
+    // keep all questions inside the game clock: suggest a game time that fits
+    const need = (Number($("qTime").value) + Number($("bTime").value)) * (T ? T.questions.length : 6);
+    if (Number($("gTime").value) < need) { addOption($("gTime"), need); $("gTime").value = String(need); }
+  }
+  $("qTime").addEventListener("change", () => { fitGameTime(); saveTimes(); $("qTime").blur(); });
+  $("bTime").addEventListener("change", () => { fitGameTime(); saveTimes(); $("bTime").blur(); });
+  $("gTime").addEventListener("change", () => { saveTimes(); $("gTime").blur(); });
 
   function renderAuto() {
     const on = T.settings.autoMark;
@@ -208,7 +243,12 @@
     if (st.status === "running" || st.status === "paused") {
       const q = st.questionSeconds * 1000 - (T.timing.qElapsedMs + drift);
       const g = st.gameSeconds * 1000 - (T.timing.gameElapsedMs + drift);
-      $("gcQT").textContent = Math.max(0, Math.ceil(Math.min(q, g) / 1000)) + "s";
+      const bonusLeft = q + (st.bonusSeconds || 0) * 1000;
+      const el = $("gcQT");
+      if (g <= 0) { el.textContent = "0s"; el.style.color = ""; }
+      else if (q > 0) { el.textContent = MBA.fmtClock(q); el.style.color = ""; }
+      else if (bonusLeft > 0) { el.textContent = "🎁 " + MBA.fmtClock(bonusLeft); el.style.color = "var(--gold)"; el.title = "Hidden bonus: students do not see this"; }
+      else { el.textContent = "closed"; el.style.color = "#ff8da1"; }
       $("gcGT").textContent = MBA.fmtClock(g);
     } else if (st.status === "ended") {
       $("gcQT").textContent = "–"; $("gcGT").textContent = MBA.fmtClock(st.gameSeconds * 1000 - T.timing.gameElapsedMs);
@@ -264,7 +304,7 @@
         '<td dir="auto"><b>' + esc(s.name) + '</b></td>' +
         '<td>' + teamChip(s.team) + '</td>' +
         '<td><span class="letterbox" style="--oc:var(--opt' + L + ')">' + esc(L) + '</span> <span dir="auto">' + esc(opt) + '</span></td>' +
-        '<td>' + s.seconds + ' s <span class="muted">(' + MBA.pointsFor(s.seconds) + ')</span></td>' +
+        '<td>' + s.seconds + ' s <span class="muted">(' + MBA.pointsFor(s.seconds, T.settings.questionSeconds + (T.settings.bonusSeconds || 0)) + ')</span></td>' +
         '<td><span class="st ' + s.status + '">' + s.status + '</span></td>' +
         '<td><b>' + s.points + '</b></td>' +
         '<td><div class="row" style="flex-wrap:nowrap;gap:6px">' +
