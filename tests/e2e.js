@@ -36,14 +36,24 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
 
   // upload students via paste
   await teacher.click('[data-tab="students"]');
+  // a second class that must NOT appear in the Class 1 room
+  await teacher.fill("#upClass", "Class 2");
+  await teacher.fill("#paste", "Omar Obada,Green\nMohanad Sami,Blue\nYazan Alhabian,Blue");
+  await teacher.waitForFunction(() => document.getElementById("upPreview").textContent.includes("3 names"));
+  await teacher.click("#btnUpload");
+  await teacher.waitForFunction(() => document.getElementById("upMsg").textContent.includes("3 students added to Class 2"));
+  await teacher.fill("#upClass", "Class 1");
   await teacher.fill("#paste", "Name,Team\nMohamed Adel,Blue\nMohamed Ahmed,Green\nHossam Mohamed,Green\nMahmoud Hassan,Blue\nأحمد علي,أزرق\nسارة خالد,أخضر\nMohamed Adel,Blue");
   await teacher.waitForFunction(() => document.getElementById("upPreview").textContent.includes("7 names"));
   await teacher.selectOption("#upMode", "replace");
   teacher.once("dialog", d => d.accept());
   await teacher.click("#btnUpload");
-  await teacher.waitForFunction(() => document.getElementById("upMsg").textContent.includes("6 students added"));
-  ok("student list uploaded: 6 added, 1 duplicate skipped");
+  await teacher.waitForFunction(() => document.getElementById("upMsg").textContent.includes("6 students added to Class 1"));
+  ok("two classes uploaded: Class 1 (6 added, 1 duplicate skipped) and Class 2 (3)");
+  await teacher.waitForFunction(() => document.querySelectorAll("#stuBody tr").length === 9);
+  await teacher.selectOption("#stuClass", "Class 1");
   await teacher.waitForFunction(() => document.querySelectorAll("#stuBody tr").length === 6);
+  ok("student list can be filtered by class");
   // change a team via dropdown then change back
   const row = teacher.locator("#stuBody tr", { hasText: "Mahmoud Hassan" });
   await row.locator("select").selectOption("Green");
@@ -55,6 +65,7 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   // create room
   await teacher.click('[data-tab="game"]');
   await teacher.fill("#roomName", "Grade 5A Battle");
+  await teacher.selectOption("#roomClass", "Class 1");
   await new Promise(r => setTimeout(r, 2500));
   const oldCode = await teacher.$eval("#roomInfo", el => (el.querySelector(".codebox") || {}).textContent || "");
   if (oldCode) teacher.once("dialog", d => d.accept());
@@ -83,7 +94,10 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await studs[0].waitForSelector(".sugg");
   const sugg = await studs[0].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent));
   assert.deepStrictEqual(sugg.sort(), ["Mohamed Adel", "Mohamed Ahmed"]);
-  ok('typing "moh" shows ONLY Mohamed Adel + Mohamed Ahmed (not Hossam Mohamed, not Mahmoud)');
+  ok('typing "moh" shows ONLY Mohamed Adel + Mohamed Ahmed (not Hossam Mohamed, not Mahmoud, not Class 2\'s Mohanad)');
+  await studs[0].fill("#nameq", "Om");
+  assert.strictEqual(await studs[0].$$eval(".sugg", e => e.length), 0);
+  ok("Class 2 students (Omar Obada) are not offered in the Class 1 room");
   await studs[0].fill("#nameq", "M");
   const m1 = await studs[0].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent));
   assert.deepStrictEqual(m1.sort(), ["Mahmoud Hassan", "Mohamed Adel", "Mohamed Ahmed"]);

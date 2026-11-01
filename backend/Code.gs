@@ -18,9 +18,9 @@ var CFG = {
 };
 
 var SCHEMA = {
-  Students:     ['studentId', 'name', 'firstName', 'team', 'addedAt'],
+  Students:     ['studentId', 'name', 'firstName', 'team', 'addedAt', 'className'],
   Teams:        ['team', 'teamName', 'mascot', 'color', 'score', 'players', 'updatedAt'],
-  Rooms:        ['roomId', 'code', 'name', 'status', 'createdAt'],
+  Rooms:        ['roomId', 'code', 'name', 'status', 'createdAt', 'className'],
   Players:      ['roomCode', 'studentId', 'name', 'team', 'deviceToken', 'joinedAt'],
   Questions:    ['qNum', 'question', 'A', 'B', 'C', 'D', 'answerKey'],
   Submissions:  ['submissionId', 'roomCode', 'qIndex', 'studentId', 'name', 'team', 'answer',
@@ -96,7 +96,8 @@ function route_(p) {
     case 'bulkReview':   requireTeacher_(p); return bulkReview_(p, now);
     case 'adjust':       requireTeacher_(p); return adjust_(p, now);
     case 'uploadStudents': requireTeacher_(p); return uploadStudents_(p, now);
-    case 'addStudent':   requireTeacher_(p); return uploadStudents_({ mode: 'append', students: [{ name: p.name, team: p.team }] }, now);
+    case 'addStudent':   requireTeacher_(p); return uploadStudents_({ mode: 'append', className: p.className, students: [{ name: p.name, team: p.team }] }, now);
+    case 'removeClass':  requireTeacher_(p); return removeClass_(p);
     case 'setTeam':      requireTeacher_(p); return setTeam_(p);
     case 'autoTeams':    requireTeacher_(p); return autoTeams_();
     case 'removeStudent':requireTeacher_(p); return removeStudent_(p);
@@ -132,14 +133,19 @@ function setup() {
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
+var HEADER_OK_ = {};
 function sheet_(name) {
-  var s = ss_().getSheetByName(name);
+  var s = ss_().getSheetByName(name), h = SCHEMA[name];
   if (!s) {
     s = ss_().insertSheet(name);
-    var h = SCHEMA[name];
     s.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
     s.setFrozenRows(1);
+  } else if (!HEADER_OK_[name]) {
+    // adds columns introduced by newer versions (e.g. className) to an existing sheet
+    var cur = s.getRange(1, 1, 1, h.length).getValues()[0];
+    if (cur.join('|') !== h.join('|')) s.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
   }
+  HEADER_OK_[name] = true;
   return s;
 }
 
@@ -298,13 +304,22 @@ function saveScores_(code, now) {
 
 /* ============================ PUBLIC: STATE ============================ */
 
+function findRoom_(code) {
+  var room = null;
+  if (code) readRows_('Rooms').forEach(function (r) {
+    if (str_(r.code) === code) room = { code: code, name: str_(r.name), className: str_(r.className), createdAt: Number(r.createdAt) || 0 };
+  });
+  return room;
+}
+
+function inClass_(student, room) {
+  return !room || !room.className || str_(student.className) === room.className;
+}
+
 function buildSnapshot_() {
   var st = readSettings_();
   var code = st.currentRoom;
-  var room = null;
-  if (code) {
-    readRows_('Rooms').forEach(function (r) { if (str_(r.code) === code) room = { code: code, name: str_(r.name) }; });
-  }
+  var room = findRoom_(code);
   var questions = readRows_('Questions').map(function (q) {
     return { text: str_(q.question), options: [str_(q.A), str_(q.B), str_(q.C), str_(q.D)] };
   });
@@ -372,7 +387,7 @@ function roster_(code) {
   }
   var joined = {};
   snap.players.forEach(function (p) { joined[p.id] = true; });
-  var list = readRows_('Students').map(function (s) {
+  var list = readRows_('Students').filter(function (s) { return inClass_(s, snap.room); }).map(function (s) {
     return { id: str_(s.studentId), name: str_(s.name), team: str_(s.team), joined: !!joined[str_(s.studentId)] };
   });
   return { ok: true, room: snap.room, students: list };
@@ -387,6 +402,7 @@ function join_(p, now) {
     var student = null;
     readRows_('Students').forEach(function (s) { if (str_(s.studentId) === sid) student = s; });
     if (!student) throw err_('NOT_IN_LIST', 'Your name is not on the class list. Ask your teacher.');
+    if (!inClass_(student, findRoom_(code))) throw err_('NOT_IN_LIST', 'Your name is not on the list for this room. Check the room code with your teacher.');
     var team = str_(student.team);
     if (team !== 'Blue' && team !== 'Green') throw err_('NO_TEAM', 'Your teacher has not given you a team yet. Please wait and try again.');
     var players = readRows_('Players').filter(function (r) { return str_(r.roomCode) === code; });
@@ -466,9 +482,10 @@ function requireTeacher_(p) {
 function teacherState_(now) {
   var st = readSettings_();
   var code = st.currentRoom;
-  var room = null;
-  readRows_('Rooms').forEach(function (r) { if (str_(r.code) === code) room = { code: code, name: str_(r.name), createdAt: Number(r.createdAt) || 0 }; });
+  var room = findRoom_(code);
   var students = readRows_('Students');
+  var classes = {};
+  students.forEach(function (s) { var c = str_(s.className); if (c) classes[c] = (classes[c] || 0) + 1; });
   var subs = readRows_('Submissions').filter(function (x) { return code && str_(x.roomCode) === code; });
   var players = readRows_('Players').filter(function (x) { return code && str_(x.roomCode) === code; });
   var sc = computeScores_(code, subs, students);
@@ -476,12 +493,13 @@ function teacherState_(now) {
   players.forEach(function (p) { joined[str_(p.studentId)] = Number(p.joinedAt) || 1; });
   return {
     ok: true, serverNow: now, settings: st, room: room, timing: timing_(st, now),
+    classes: Object.keys(classes).sort().map(function (c) { return { name: c, count: classes[c] }; }),
     questions: readRows_('Questions').map(function (q) {
       return { text: str_(q.question), options: [str_(q.A), str_(q.B), str_(q.C), str_(q.D)], answerKey: up_(q.answerKey) };
     }),
     students: students.map(function (s) {
       var id = str_(s.studentId), p = sc.players[id];
-      return { id: id, name: str_(s.name), team: str_(s.team), joinedAt: joined[id] || 0, score: p ? p.score : 0, correct: p ? p.correct : 0 };
+      return { id: id, name: str_(s.name), team: str_(s.team), className: str_(s.className), joinedAt: joined[id] || 0, score: p ? p.score : 0, correct: p ? p.correct : 0 };
     }),
     submissions: subs.map(function (x) {
       return { id: str_(x.submissionId), qIndex: Number(x.qIndex), studentId: str_(x.studentId), name: str_(x.name),
@@ -494,7 +512,8 @@ function teacherState_(now) {
 }
 
 function createRoom_(p, now) {
-  var name = cleanName_(p.name) || 'Grade 5 Battle';
+  var className = cleanName_(p.className);
+  var name = cleanName_(p.name) || (className ? className + ' Battle' : 'Grade 5 Battle');
   return withLock_(function () {
     var rooms = readRows_('Rooms');
     var used = {};
@@ -504,14 +523,14 @@ function createRoom_(p, now) {
       code = '';
       for (var i = 0; i < 5; i++) code += letters.charAt(Math.floor(Math.random() * letters.length));
     } while (used[code]);
-    appendRows_('Rooms', [{ roomId: uid_('R'), code: code, name: name, status: 'lobby', createdAt: now }]);
+    appendRows_('Rooms', [{ roomId: uid_('R'), code: code, name: name, status: 'lobby', createdAt: now, className: className }]);
     var st = readSettings_();
     st.currentRoom = code; st.status = 'lobby'; st.qIndex = -1;
     st.qStartedAt = 0; st.gameStartedAt = 0; st.pausedAt = 0; st.endedAt = 0;
     writeSettings_(st);
     saveScores_(code, now);
     bump_();
-    return { ok: true, room: { code: code, name: name } };
+    return { ok: true, room: { code: code, name: name, className: className } };
   });
 }
 
@@ -625,8 +644,11 @@ function adjust_(p, now) {
 function uploadStudents_(p, now) {
   var list = Array.isArray(p.students) ? p.students : [];
   var mode = str_(p.mode) === 'replace' ? 'replace' : 'append';
+  var className = cleanName_(p.className);
   return withLock_(function () {
-    var existing = mode === 'replace' ? [] : readRows_('Students');
+    var all = readRows_('Students');
+    var others = all.filter(function (s) { return str_(s.className) !== className; });
+    var existing = mode === 'replace' ? [] : all.filter(function (s) { return str_(s.className) === className; });
     var seen = {};
     existing.forEach(function (s) { seen[normName_(s.name)] = true; });
     var added = [], skipped = [];
@@ -636,12 +658,14 @@ function uploadStudents_(p, now) {
       var key = normName_(name);
       if (seen[key]) { skipped.push(name); return; }
       seen[key] = true;
-      added.push({ studentId: uid_('S'), name: name, firstName: name.split(' ')[0], team: normTeam_(it.team), addedAt: now });
+      added.push({ studentId: uid_('S'), name: name, firstName: name.split(' ')[0], team: normTeam_(it.team), addedAt: now, className: className });
     });
     if (mode === 'replace') {
-      rewriteAll_('Students', added);
-      var st = readSettings_();
-      rewriteAll_('Players', readRows_('Players').filter(function (r) { return str_(r.roomCode) !== st.currentRoom; }));
+      var keep = others.concat(added);
+      rewriteAll_('Students', keep);
+      var ids = {};
+      keep.forEach(function (s) { ids[str_(s.studentId)] = true; });
+      rewriteAll_('Players', readRows_('Players').filter(function (r) { return ids[str_(r.studentId)]; }));
     } else {
       appendRows_('Students', added);
     }
@@ -665,14 +689,19 @@ function setTeam_(p) {
 function autoTeams_() {
   return withLock_(function () {
     var rows = readRows_('Students');
-    var c = { Blue: 0, Green: 0 };
-    rows.forEach(function (s) { if (c[str_(s.team)] !== undefined) c[str_(s.team)]++; });
+    var byClass = {};   // balance the teams inside each class
+    rows.forEach(function (s) {
+      var k = str_(s.className), c = byClass[k] = byClass[k] || { Blue: 0, Green: 0 };
+      if (c[str_(s.team)] !== undefined) c[str_(s.team)]++;
+    });
     var changed = 0;
     rows.forEach(function (s) {
       if (str_(s.team) === 'Blue' || str_(s.team) === 'Green') return;
+      var c = byClass[str_(s.className)];
       s.team = c.Blue <= c.Green ? 'Blue' : 'Green';
       c[s.team]++; changed++;
     });
+    var c = byClass;
     if (changed) rewriteAll_('Students', rows);
     bump_();
     return { ok: true, changed: changed, counts: c };
@@ -696,5 +725,20 @@ function releaseStudent_(p) {
     rewriteAll_('Players', readRows_('Players').filter(function (r) { return !(str_(r.studentId) === id && str_(r.roomCode) === st.currentRoom); }));
     bump_();
     return { ok: true };
+  });
+}
+
+function removeClass_(p) {
+  var className = cleanName_(p.className);
+  if (!className) throw err_('BAD_REQUEST', 'Choose a class.');
+  return withLock_(function () {
+    var all = readRows_('Students');
+    var keep = all.filter(function (s) { return str_(s.className) !== className; });
+    rewriteAll_('Students', keep);
+    var ids = {};
+    keep.forEach(function (s) { ids[str_(s.studentId)] = true; });
+    rewriteAll_('Players', readRows_('Players').filter(function (r) { return ids[str_(r.studentId)]; }));
+    bump_();
+    return { ok: true, removed: all.length - keep.length };
   });
 }

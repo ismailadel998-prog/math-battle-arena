@@ -173,6 +173,38 @@ t("release + remove student", () => {
   T({ action: "removeStudent", studentId: mid });
   assert.strictEqual(P({ action: "join", code: c, studentId: mid, deviceToken: "dev-zzzzzzzz" }).error, "NOT_IN_LIST");
 });
+t("classes: separate lists, room limited to its class", () => {
+  T({ action: "uploadStudents", mode: "replace", className: "Class 1", students: [{ name: "Omar Emad", team: "" }, { name: "Kenan Ameen", team: "" }, { name: "Anas Jamal", team: "" }] });
+  T({ action: "uploadStudents", mode: "replace", className: "Class 2", students: [{ name: "Omar Obada", team: "" }, { name: "Yazan Alhabian", team: "" }] });
+  let ts = T({ action: "teacherState" });
+  assert.deepStrictEqual(ts.classes.map(c => c.name + ":" + c.count), ["Class 1:3", "Class 2:2"]);
+  T({ action: "autoTeams" });
+  ts = T({ action: "teacherState" });
+  const c1 = ts.students.filter(s => s.className === "Class 1");
+  assert.strictEqual(c1.filter(s => s.team === "Blue").length, 2); assert.strictEqual(c1.filter(s => s.team === "Green").length, 1);
+  // replacing Class 2 does not touch Class 1
+  T({ action: "uploadStudents", mode: "replace", className: "Class 2", students: [{ name: "Omar Obada", team: "Green" }, { name: "Yazan Alhabian", team: "Blue" }, { name: "Rayan Rafat", team: "Blue" }] });
+  ts = T({ action: "teacherState" });
+  assert.strictEqual(ts.students.filter(s => s.className === "Class 1").length, 3);
+  assert.strictEqual(ts.students.filter(s => s.className === "Class 2").length, 3);
+  // same name allowed in a different class, duplicate inside the class skipped
+  const d = T({ action: "uploadStudents", mode: "append", className: "Class 2", students: [{ name: "omar obada" }] });
+  assert.strictEqual(d.added, 0);
+  const room = T({ action: "createRoom", name: "2nd", className: "Class 2" }).room;
+  assert.strictEqual(room.className, "Class 2");
+  const r = P({ action: "roster", code: room.code });
+  assert.deepStrictEqual(r.students.map(s => s.name).sort(), ["Omar Obada", "Rayan Rafat", "Yazan Alhabian"]);
+  const c1id = ts.students.find(s => s.name === "Omar Emad").id;
+  assert.strictEqual(P({ action: "join", code: room.code, studentId: c1id, deviceToken: "dev-class1xx" }).error, "NOT_IN_LIST");
+  const c2id = ts.students.find(s => s.name === "Omar Obada").id;
+  assert(P({ action: "join", code: room.code, studentId: c2id, deviceToken: "dev-class2xx" }).ok);
+  assert.strictEqual(T({ action: "removeClass", className: "Class 1" }).removed, 3);
+  assert.deepStrictEqual(T({ action: "teacherState" }).classes.map(c => c.name), ["Class 2"]);
+});
+t("old sheets get the new className column added", () => {
+  const data = rt.sheet("Students"); assert.strictEqual(data[0][5], "className");
+  assert.strictEqual(rt.sheet("Rooms")[0][5], "className");
+});
 t("logout invalidates the token", () => { T({ action: "logout" }); assert.strictEqual(T({ action: "teacherState" }).error, "AUTH"); });
 
 console.log("\n" + passed + " backend tests passed");

@@ -76,6 +76,31 @@
   const studentLink = code => new URL("./", location.href).href + "?room=" + encodeURIComponent(code);
   const arenaLink = code => new URL("arena.html", location.href).href + (code ? "?room=" + encodeURIComponent(code) : "");
 
+  /** Students of the class playing in the current room (all students if the room has no class). */
+  function roomStudents() {
+    const c = T.room && T.room.className;
+    return c ? T.students.filter(s => s.className === c) : T.students;
+  }
+
+  function fillSelect(id, options, keep) {
+    const el = $(id);
+    const html = options.map(o => '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>').join("");
+    if (el.dataset.h === html) return;
+    const prev = el.value;
+    el.dataset.h = html; el.innerHTML = html;
+    if (keep && options.some(o => o[0] === prev)) el.value = prev;
+  }
+
+  function renderClasses() {
+    const cls = T.classes.map(c => [c.name, c.name + " (" + c.count + ")"]);
+    const noClass = T.students.some(s => !s.className);
+    fillSelect("roomClass", cls.length ? cls.concat(noClass ? [["", "All students"]] : []) : [["", "All students"]], true);
+    fillSelect("addClass", T.classes.length ? T.classes.map(c => [c.name, c.name]) : [["", "(no class)"]], true);
+    fillSelect("stuClass", [["*", "All classes"]].concat(cls).concat(noClass && cls.length ? [["", "Without class"]] : []), true);
+    $("classList").innerHTML = T.classes.map(c => '<option value="' + esc(c.name) + '">').join("");
+    $("btnRemoveClass").hidden = !$("stuClass").value || $("stuClass").value === "*";
+  }
+
   /* ---------------- render ---------------- */
   function render() {
     if (!T) return;
@@ -84,7 +109,7 @@
     $("tbStatus").className = "status-pill " + st.status;
     $("tbRoom").textContent = room ? "Room " + room.code : "";
     $("tbArena").href = arenaLink(room && room.code);
-    renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
+    renderClasses(); renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
     MBA.animateNumber($("lsBlue"), T.teams.Blue);
     MBA.animateNumber($("lsGreen"), T.teams.Green);
     const pending = T.submissions.filter(s => s.status === "pending").length;
@@ -96,11 +121,11 @@
     const box = $("roomInfo");
     if (!room) { box.innerHTML = '<p class="muted">No room yet. Give it a name and press <b>Create new room</b>.</p>'; }
     else {
-      const sig = room.code;
+      const sig = room.code + "|" + room.className;
       if (box.dataset.sig !== sig) {
         box.dataset.sig = sig;
         box.innerHTML =
-          '<div class="eyebrow">' + esc(room.name) + '</div><div class="codebox">' + esc(room.code) + '</div>' +
+          '<div class="eyebrow">' + esc(room.name) + ' · ' + (room.className ? 'Class: ' + esc(room.className) : 'All students') + '</div><div class="codebox">' + esc(room.code) + '</div>' +
           '<div class="row" style="margin-top:8px"><input class="input" style="flex:1;font-size:.9rem" readonly id="roomLink" value="' + esc(studentLink(room.code)) + '">' +
           '<button class="btn btn-sm btn-blue" id="btnCopy">📋 Copy room link</button>' +
           '<a class="btn btn-sm btn-ghost" target="_blank" rel="noopener" href="' + esc(arenaLink(room.code)) + '">📺 Open arena</a></div>';
@@ -112,12 +137,13 @@
         });
       }
     }
-    const joined = T.students.filter(s => s.joinedAt).sort((a, b) => a.name.localeCompare(b.name));
-    const notJoined = T.students.filter(s => !s.joinedAt).sort((a, b) => a.name.localeCompare(b.name));
+    const list = roomStudents();
+    const joined = list.filter(s => s.joinedAt).sort((a, b) => a.name.localeCompare(b.name));
+    const notJoined = list.filter(s => !s.joinedAt).sort((a, b) => a.name.localeCompare(b.name));
     $("joinedN").textContent = "(" + joined.length + ")";
     $("notJoinedN").textContent = "(" + notJoined.length + ")";
     setHTML("joinedList", joined.map(s => '<span class="chip ' + (MBA.TEAM[s.team] || {}).cls + '" dir="auto"><span class="dot"></span>' + esc(s.name) + '</span>').join("") || '<span class="muted">Nobody yet.</span>');
-    setHTML("notJoinedList", notJoined.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || (T.students.length ? '<span class="muted">Everyone has joined 🎉</span>' : '<span class="muted">No students uploaded yet. Open the Students tab.</span>'));
+    setHTML("notJoinedList", notJoined.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || (list.length ? '<span class="muted">Everyone has joined 🎉</span>' : '<span class="muted">No students uploaded yet. Open the Students tab.</span>'));
   }
 
   function setHTML(id, html) { const el = $(id); if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; } }
@@ -223,7 +249,7 @@
     if (tbody.dataset.h !== html) { tbody.dataset.h = html; tbody.innerHTML = html; }
 
     const answered = new Set(subs.map(s => s.studentId));
-    const missing = T.students.filter(s => s.joinedAt && !answered.has(s.id));
+    const missing = roomStudents().filter(s => s.joinedAt && !answered.has(s.id));
     $("noAnsN").textContent = "(" + missing.length + ")";
     setHTML("noAnsList", missing.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || '<span class="muted">—</span>');
   }
@@ -276,23 +302,25 @@
   $("btnCreateRoom").addEventListener("click", async () => {
     if (T && T.room && !confirm("Create a NEW room? The current room " + T.room.code + " will close and students must join the new code.")) return;
     $("btnCreateRoom").disabled = true;
-    try { const r = await call("createRoom", { name: $("roomName").value.trim() }, "Room created"); $("roomName").value = ""; reviewQ = null; $("roomInfo").dataset.sig = ""; }
+    try { const r = await call("createRoom", { name: $("roomName").value.trim(), className: $("roomClass").value }, "Room created for " + ($("roomClass").value || "all students")); $("roomName").value = ""; reviewQ = null; $("roomInfo").dataset.sig = ""; }
     catch (e) { } finally { $("btnCreateRoom").disabled = false; }
   });
 
   /* ---------------- students ---------------- */
   function renderStudents() {
+    const cf = $("stuClass").value;
+    const shown = cf === "*" || cf === undefined ? T.students : T.students.filter(s => s.className === cf);
     const counts = { Blue: 0, Green: 0, none: 0 };
-    T.students.forEach(s => { if (counts[s.team] !== undefined) counts[s.team]++; else counts.none++; });
-    $("teamCounts").innerHTML = "🔵 Blue: <b>" + counts.Blue + "</b> &nbsp; 🟢 Green: <b>" + counts.Green + "</b> &nbsp; Without team: <b>" + counts.none + "</b>";
-    $("btnAuto").disabled = !counts.none;
-    $("stuN").textContent = "(" + T.students.length + ")";
+    shown.forEach(s => { if (counts[s.team] !== undefined) counts[s.team]++; else counts.none++; });
+    $("teamCounts").innerHTML = (cf && cf !== "*" ? "<b>" + esc(cf) + "</b>: " : "") + "🔵 Blue: <b>" + counts.Blue + "</b> &nbsp; 🟢 Green: <b>" + counts.Green + "</b> &nbsp; Without team: <b>" + counts.none + "</b>";
+    $("btnAuto").disabled = !T.students.some(s => !MBA.TEAM[s.team]);
+    $("stuN").textContent = "(" + shown.length + ")";
     const tbody = $("stuBody");
     if (tbody.contains(document.activeElement) && document.activeElement.tagName === "SELECT") return;
     const f = MBA.normName($("stuFilter").value);
-    const rows = T.students.filter(s => !f || MBA.normName(s.name).includes(f)).sort((a, b) => a.name.localeCompare(b.name));
+    const rows = shown.filter(s => !f || MBA.normName(s.name).includes(f)).sort((a, b) => a.name.localeCompare(b.name));
     const html = rows.map(s =>
-      '<tr data-id="' + esc(s.id) + '"><td dir="auto"><b>' + esc(s.name) + '</b></td>' +
+      '<tr data-id="' + esc(s.id) + '"><td dir="auto"><b>' + esc(s.name) + '</b></td><td>' + (s.className ? esc(s.className) : '<span class="muted">—</span>') + '</td>' +
       '<td><select class="mini" data-act="team"><option value=""' + (!MBA.TEAM[s.team] ? " selected" : "") + '>— choose —</option>' +
       '<option value="Blue"' + (s.team === "Blue" ? " selected" : "") + '>🔵 Blue – Number Ninjas</option>' +
       '<option value="Green"' + (s.team === "Green" ? " selected" : "") + '>🟢 Green – Math Titans</option></select></td>' +
@@ -300,10 +328,17 @@
       '<td>' + s.score + '</td>' +
       '<td><div class="row" style="flex-wrap:nowrap;gap:6px">' + (s.joinedAt ? '<button class="btn btn-sm btn-ghost" data-act="release" title="Let this student join again from another device">Release</button>' : '') +
       '<button class="btn btn-sm btn-red" data-act="remove">Remove</button></div></td></tr>'
-    ).join("") || '<tr><td colspan="5" class="muted">No students yet. Upload your class list above.</td></tr>';
+    ).join("") || '<tr><td colspan="6" class="muted">No students yet. Upload your class list above.</td></tr>';
     if (tbody.dataset.h !== html) { tbody.dataset.h = html; tbody.innerHTML = html; }
   }
   $("stuFilter").addEventListener("input", () => T && renderStudents());
+  $("stuClass").addEventListener("change", () => { if (!T) return; $("stuBody").dataset.h = ""; renderClasses(); renderStudents(); });
+  $("btnRemoveClass").addEventListener("click", async () => {
+    const c = $("stuClass").value;
+    if (!c || c === "*") return;
+    if (!confirm("Delete the whole class \"" + c + "\" from the student list?")) return;
+    try { const r = await call("removeClass", { className: c }); MBA.toast(r.removed + " students removed"); $("stuClass").value = "*"; } catch (e) { }
+  });
 
   $("stuBody").addEventListener("change", async e => {
     if (e.target.dataset.act !== "team") return;
@@ -328,7 +363,7 @@
     const name = $("addName").value.trim();
     if (!name) return;
     try {
-      const r = await call("addStudent", { name, team: $("addTeam").value });
+      const r = await call("addStudent", { name, team: $("addTeam").value, className: $("addClass").value });
       if (r.added) { MBA.toast(name + " added"); $("addName").value = ""; } else MBA.toast("That name is already on the list.", true);
     } catch (e) { }
   });
@@ -421,12 +456,14 @@
   $("btnUpload").addEventListener("click", async () => {
     if (!pendingRows || !pendingRows.length) return;
     const mode = $("upMode").value;
-    if (mode === "replace" && !confirm("Replace the WHOLE student list with " + pendingRows.length + " names?")) return;
+    const className = $("upClass").value.trim().replace(/\s+/g, " ");
+    if (!className) { MBA.toast("Type the class name first (e.g. Class 1).", true); $("upClass").focus(); return; }
+    if (mode === "replace" && !confirm("Replace the list of " + className + " with " + pendingRows.length + " names? Other classes are not changed.")) return;
     $("btnUpload").disabled = true;
     try {
-      const r = await call("uploadStudents", { students: pendingRows, mode });
+      const r = await call("uploadStudents", { students: pendingRows, mode, className });
       $("upMsg").className = "msg ok";
-      $("upMsg").textContent = "✅ " + r.added + " students added." + (r.skipped.length ? " Skipped " + r.skipped.length + " duplicate(s): " + r.skipped.slice(0, 8).join(", ") + (r.skipped.length > 8 ? "…" : "") : "");
+      $("upMsg").textContent = "✅ " + r.added + " students added to " + className + "." + (r.skipped.length ? " Skipped " + r.skipped.length + " duplicate(s): " + r.skipped.slice(0, 8).join(", ") + (r.skipped.length > 8 ? "…" : "") : "");
       pendingRows = null; $("upPreview").textContent = ""; $("paste").value = ""; $("file").value = "";
     } catch (e) { $("btnUpload").disabled = false; }
   });
@@ -436,12 +473,12 @@
     const teams = [["Blue", T.teams.Blue], ["Green", T.teams.Green]].sort((a, b) => b[1] - a[1]);
     setHTML("teamRank", teams.map((t, i) => {
       const m = MBA.TEAM[t[0]];
-      const n = T.students.filter(s => s.team === t[0] && s.joinedAt).length;
+      const n = roomStudents().filter(s => s.team === t[0] && s.joinedAt).length;
       return '<div class="lb-row ' + m.cls + '" style="padding:14px"><span class="rank">' + (teams[0][1] === teams[1][1] ? "=" : "#" + (i + 1)) + '</span>' +
         '<img src="' + m.img + '" width="56" height="56" alt=""><div><b>' + m.emoji + " " + m.label + '</b><div class="muted">' + m.name + ' · ' + n + ' players</div></div>' +
         '<span class="pts" style="font-size:2rem">' + t[1] + '</span></div>';
     }).join(""));
-    const ind = T.students.filter(s => s.joinedAt || s.score).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    const ind = roomStudents().filter(s => s.joinedAt || s.score).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
     setHTML("indRank", ind.map((s, i) =>
       '<div class="lb-row"><span class="rank">' + (i + 1) + '</span>' + teamChip(s.team) + '<span dir="auto">' + esc(s.name) + '</span><span class="pts">' + s.score + '</span></div>'
     ).join("") || '<p class="muted">No players yet.</p>');

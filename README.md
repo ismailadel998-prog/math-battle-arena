@@ -76,10 +76,12 @@ You can change it there at any time. It is never in the website code.
 ## STEP 3: Get ready for class
 
 1. Open `https://USERNAME.github.io/math-battle-arena/teacher.html` and log in with your password.
-2. **👥 Students tab:** upload your Excel or CSV file. Column 1 = full name, column 2 = team (`Blue`/`Green`, or `أزرق`/`أخضر`).
+2. **👥 Students tab:** type a **Class name** (e.g. `Class 1`), then upload that class's Excel or CSV file. Column 1 = full name, column 2 = team (`Blue`/`Green`, or `أزرق`/`أخضر`).
+   Repeat for each class. Every class keeps its own list, and the dropdown above the student list filters by class.
    The team column is optional: you can choose teams from the dropdowns, or press **Auto-assign** to split students evenly.
    Duplicate names are skipped automatically. See `sample-students.csv` for an example.
-3. **🎮 Game tab:** type a room name and press **Create new room**. You get a 5-letter code.
+3. **🎮 Game tab:** under **Which class is playing?** choose the class, then press **Create new room**. You get a 5-letter code.
+   Only that class's names appear when students search, and only they can join.
 4. Press **📋 Copy room link** and send it to the students. The code is already filled in, so they only type the first letters of their first name.
 5. Open **📺 Arena screen** and share that browser tab in Zoom, Teams or Meet, or show it on the classroom projector.
 6. When everyone has joined, press **▶ Start game**.

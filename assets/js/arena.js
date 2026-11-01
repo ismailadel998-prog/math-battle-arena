@@ -23,7 +23,7 @@
   function render() {
     const s = S;
     const room = s.room;
-    $("roomName").textContent = room ? room.name : "No active room";
+    $("roomName").textContent = room ? room.name + (room.className ? " · " + room.className : "") : "No active room";
     $("roomCode").textContent = room ? room.code : "-----";
     $("bigCode").textContent = room ? room.code : "-----";
     const link = new URL("./", location.href).href + (room ? "?room=" + room.code : "");
