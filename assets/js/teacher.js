@@ -117,7 +117,7 @@
     $("joinedN").textContent = "(" + joined.length + ")";
     $("notJoinedN").textContent = "(" + notJoined.length + ")";
     setHTML("joinedList", joined.map(s => '<span class="chip ' + (MBA.TEAM[s.team] || {}).cls + '" dir="auto"><span class="dot"></span>' + esc(s.name) + '</span>').join("") || '<span class="muted">Nobody yet.</span>');
-    setHTML("notJoinedList", notJoined.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || '<span class="muted">Everyone has joined 🎉</span>');
+    setHTML("notJoinedList", notJoined.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || (T.students.length ? '<span class="muted">Everyone has joined 🎉</span>' : '<span class="muted">No students uploaded yet. Open the Students tab.</span>'));
   }
 
   function setHTML(id, html) { const el = $(id); if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; } }
