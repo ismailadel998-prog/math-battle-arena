@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Arena Control</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="teacher">
+  <div class="bg-arena"></div>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="login" class="login-wrap" hidden>
+    <form class="card" id="loginForm" autocomplete="off">
+      <img src="assets/img/favicon.svg" alt="" width="64" height="64">
+      <h1 class="title-logo" style="font-size:2rem;margin:10px 0">MATH BATTLE <span class="x">ARENA</span></h1>
+      <p class="muted">Teacher control room</p>
+      <label class="lbl" for="pw">Teacher password</label>
+      <input id="pw" class="input" type="password" autocomplete="current-password" required>
+      <button class="btn btn-gold btn-block btn-lg" style="margin-top:16px" id="btnLogin">LOG IN</button>
+      <p class="msg err" id="loginMsg"></p>
+    </form>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div id="dash" hidden>
+    <header class="tbar">
+      <div class="brand"><img src="assets/img/favicon.svg" alt="">ARENA CONTROL</div>
+      <div class="row">
+        <span id="tbRoom" class="muted"></span>
+        <span id="tbStatus" class="status-pill">lobby</span>
+        <span class="row" style="gap:6px">
+          <button class="btn btn-sm btn-gold" data-cmd="pause" title="Pause">⏸ Pause</button>
+          <button class="btn btn-sm btn-blue" data-cmd="resume" title="Resume">⏵ Resume</button>
+          <button class="btn btn-sm" data-cmd="next" title="Next question">Next ▶</button>
+        </span>
+        <a class="btn btn-sm btn-ghost" id="tbArena" href="arena.html" target="_blank" rel="noopener">📺 Arena screen</a>
+        <button class="btn btn-sm btn-red" id="btnLogout">Log out</button>
+      </div>
+    </header>
+    <main>
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="game">🎮 Game</button>
+        <button class="tab" data-tab="review">✅ Answer review <span class="badge" id="pendingBadge" hidden>0</span></button>
+        <button class="tab" data-tab="students">👥 Students</button>
+        <button class="tab" data-tab="board">🏆 Leaderboard</button>
+      </nav>
+
+      <!-- GAME TAB -->
+      <section class="tabpane" id="tab-game">
+        <div class="grid2">
+          <div class="stack">
+            <div class="card" id="roomCard">
+              <h2>A · Room management</h2>
+              <div id="roomInfo"></div>
+              <div class="row" style="margin-top:12px">
+                <input id="roomName" class="input" style="flex:1;min-width:180px;font-size:1rem" placeholder="Room name (e.g. 5A Battle)">
+                <button class="btn btn-gold" id="btnCreateRoom">Create new room</button>
+              </div>
+            </div>
+            <div class="card">
+              <h2>C · Game control</h2>
+              <div class="row" style="justify-content:space-between;margin-bottom:12px">
+                <div><div class="eyebrow">Question</div><div class="kpi" id="gcQ">–</div></div>
+                <div><div class="eyebrow">Question timer</div><div class="kpi" id="gcQT">–</div></div>
+                <div><div class="eyebrow">Game clock</div><div class="kpi" id="gcGT">7:00</div></div>
+                <div><div class="eyebrow">Answered</div><div class="kpi" id="gcAns">0/0</div></div>
+              </div>
+              <div class="ctl">
+                <button class="btn btn-green" data-cmd="start">▶ Start game</button>
+                <button class="btn btn-gold" data-cmd="pause">⏸ Pause</button>
+                <button class="btn btn-blue" data-cmd="resume">⏵ Resume</button>
+                <button class="btn" data-cmd="prev">◀ Previous</button>
+                <button class="btn" data-cmd="next">Next ▶</button>
+                <button class="btn btn-red" data-cmd="end">🏁 End game</button>
+                <button class="btn btn-ghost" data-cmd="reset">↺ Reset game</button>
+              </div>
+              <p class="muted" id="gcHint" style="margin:10px 0 0"></p>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="card">
+              <h2>Live score</h2>
+              <div class="grid2">
+                <div class="ms team-blue" style="padding:14px;border-radius:14px;background:rgba(47,140,255,.15);border:1px solid var(--blue)">
+                  <div class="eyebrow">🔵 Number Ninjas</div><div class="kpi" id="lsBlue">0</div></div>
+                <div class="ms team-green" style="padding:14px;border-radius:14px;background:rgba(34,211,111,.15);border:1px solid var(--green)">
+                  <div class="eyebrow">🟢 Math Titans</div><div class="kpi" id="lsGreen">0</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <h2>Current question</h2>
+              <div id="curQ" class="muted">The game has not started.</div>
+            </div>
+            <div class="card">
+              <h2>Joined <span class="muted" id="joinedN"></span></h2>
+              <div class="namelist" id="joinedList"></div>
+              <h3>Not joined yet <span class="muted" id="notJoinedN"></span></h3>
+              <div class="namelist" id="notJoinedList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REVIEW TAB -->
+      <section class="tabpane" id="tab-review" hidden>
+        <div class="card">
+          <h2>D · Answer review</h2>
+          <div class="qchips" id="qchips"></div>
+          <div class="keyhint" id="keyhint" style="margin:12px 0"></div>
+          <div class="row" style="margin-bottom:12px">
+            <button class="btn btn-sm btn-green" id="btnBulk">Mark all pending answers</button>
+            <span class="muted" id="bulkHint"></span>
+          </div>
+          <div class="tablewrap">
+            <table class="tbl">
+              <thead><tr><th>Student</th><th>Team</th><th>Answer</th><th>Time</th><th>Status</th><th>Points</th><th>Review</th><th>Adjust</th></tr></thead>
+              <tbody id="reviewBody"></tbody>
+            </table>
+          </div>
+          <h3>Did not answer <span class="muted" id="noAnsN"></span></h3>
+          <div class="namelist" id="noAnsList"></div>
+        </div>
+      </section>
+
+      <!-- STUDENTS TAB -->
+      <section class="tabpane" id="tab-students" hidden>
+        <div class="grid2">
+          <div class="card">
+            <h2>B · Upload student list</h2>
+            <p class="muted" style="margin-top:0">Excel (.xlsx / .xls) or CSV. One student per row. Column 1 = full name, column 2 = team (Blue / Green, optional). Header row is optional.</p>
+            <label class="drop" id="drop">
+              <input type="file" id="file" accept=".csv,.xlsx,.xls,.txt" hidden>
+              📄 <b>Click to choose a file</b> or drop it here
+            </label>
+            <label class="lbl" for="paste">…or paste names (one per line, “Name, Team”)</label>
+            <textarea id="paste" class="input" dir="auto" placeholder="Mohamed Adel, Blue&#10;Hossam Mohamed, Green&#10;سارة أحمد, Blue"></textarea>
+            <div class="row" style="margin-top:10px">
+              <select id="upMode" class="mini" style="padding:10px">
+                <option value="append">Add to the list</option>
+                <option value="replace">Replace the whole list</option>
+              </select>
+              <button class="btn btn-gold" id="btnUpload" disabled>Upload</button>
+              <span class="muted" id="upPreview"></span>
+            </div>
+            <p class="msg" id="upMsg"></p>
+          </div>
+          <div class="card">
+            <h2>Add one student</h2>
+            <div class="row">
+              <input id="addName" class="input" style="flex:1;min-width:180px;font-size:1rem" placeholder="Full name" dir="auto">
+              <select id="addTeam" class="mini" style="padding:10px"><option value="Blue">🔵 Blue</option><option value="Green">🟢 Green</option></select>
+              <button class="btn btn-blue" id="btnAdd">Add</button>
+            </div>
+            <h2 style="margin-top:22px">Teams</h2>
+            <p class="muted" style="margin-top:0" id="teamCounts"></p>
+            <button class="btn btn-sm" id="btnAuto">Auto-assign students without a team</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h2>Student list <span class="muted" id="stuN"></span></h2>
+          <input id="stuFilter" class="input" style="font-size:1rem;margin-bottom:10px" placeholder="Filter by name…" dir="auto">
+          <div class="tablewrap">
+            <table class="tbl">
+              <thead><tr><th>Name</th><th>Team</th><th>In current room</th><th>Points</th><th></th></tr></thead>
+              <tbody id="stuBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- LEADERBOARD TAB -->
+      <section class="tabpane" id="tab-board" hidden>
+        <div class="grid2">
+          <div class="card">
+            <h2>E · Team ranking</h2>
+            <div id="teamRank"></div>
+          </div>
+          <div class="card">
+            <h2>Individual scores</h2>
+            <div id="indRank"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/teacher.js"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+/* End-to-end test: teacher + arena + 4 students in separate browser contexts.
+   Usage: node tests/server.js &  then  node tests/e2e.js */
+const { chromium, devices } = require("playwright");
+const assert = require("assert");
+const WEB = "http://localhost:8080/", API = "http://localhost:8787";
+const shot = (p, n) => p.screenshot({ path: __dirname + "/screens/" + n + ".png" });
+let step = 0; const ok = m => console.log("  ✔ " + (++step) + ". " + m);
+const advance = ms => fetch(API + "/__advance?ms=" + ms);
+
+(async () => {
+  const browser = await chromium.launch();
+  const errors = [];
+  const mk = async (opts = {}) => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...opts });
+    const p = await ctx.newPage();
+    p.on("pageerror", e => errors.push(e.message));
+    p.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+    return p;
+  };
+
+  // ---------- teacher ----------
+  const teacher = await mk({ viewport: { width: 1366, height: 900 } });
+  await teacher.goto(WEB + "teacher.html");
+  await teacher.waitForSelector("#login:not([hidden])");
+  await teacher.fill("#pw", "wrong"); await teacher.click("#btnLogin");
+  await teacher.waitForFunction(() => document.getElementById("loginMsg").textContent.includes("Wrong"));
+  assert(await teacher.isHidden("#dash"));
+  ok("wrong teacher password rejected by the server");
+  await shot(teacher, "01-teacher-login");
+  await teacher.fill("#pw", "Aa1234"); await teacher.click("#btnLogin");
+  await teacher.waitForSelector("#dash:not([hidden])");
+  ok("teacher logs in with Aa1234");
+  const html = await (await fetch(WEB + "assets/js/teacher.js")).text() + await (await fetch(WEB + "assets/js/common.js")).text() + await (await fetch(WEB + "teacher.html")).text();
+  assert(!html.includes("Aa1234"));
+  ok("password does not appear anywhere in the website code");
+
+  // upload students via paste
+  await teacher.click('[data-tab="students"]');
+  await teacher.fill("#paste", "Name,Team\nMohamed Adel,Blue\nMohamed Ahmed,Green\nHossam Mohamed,Green\nMahmoud Hassan,Blue\nأحمد علي,أزرق\nسارة خالد,أخضر\nMohamed Adel,Blue");
+  await teacher.waitForFunction(() => document.getElementById("upPreview").textContent.includes("7 names"));
+  await teacher.selectOption("#upMode", "replace");
+  teacher.once("dialog", d => d.accept());
+  await teacher.click("#btnUpload");
+  await teacher.waitForFunction(() => document.getElementById("upMsg").textContent.includes("6 students added"));
+  ok("student list uploaded: 6 added, 1 duplicate skipped");
+  await teacher.waitForFunction(() => document.querySelectorAll("#stuBody tr").length === 6);
+  // change a team via dropdown then change back
+  const row = teacher.locator("#stuBody tr", { hasText: "Mahmoud Hassan" });
+  await row.locator("select").selectOption("Green");
+  await teacher.waitForFunction(() => [...document.querySelectorAll("#stuBody tr")].some(r => r.textContent.includes("Mahmoud") && r.querySelector("select").value === "Green"));
+  await advance(0);
+  ok("teacher assigns a team from the dashboard");
+  await shot(teacher, "02-teacher-students");
+
+  // create room
+  await teacher.click('[data-tab="game"]');
+  await teacher.fill("#roomName", "Grade 5A Battle");
+  await new Promise(r => setTimeout(r, 2500));
+  const oldCode = await teacher.$eval("#roomInfo", el => (el.querySelector(".codebox") || {}).textContent || "");
+  if (oldCode) teacher.once("dialog", d => d.accept());
+  await teacher.click("#btnCreateRoom");
+  await teacher.waitForFunction(o => { const c = document.querySelector("#roomInfo .codebox"); return c && c.textContent !== o; }, oldCode);
+  const code = (await teacher.textContent("#roomInfo .codebox")).trim();
+  assert(/^[A-Z]{5}$/.test(code));
+  ok("room created with code " + code);
+
+  // ---------- arena ----------
+  const arena = await mk({ viewport: { width: 1600, height: 900 } });
+  await arena.goto(WEB + "arena.html?room=" + code);
+  await arena.waitForFunction(c => document.getElementById("bigCode").textContent === c, code);
+  ok("arena screen shows the room code");
+
+  // ---------- students ----------
+  const names = ["Mohamed Adel", "Mohamed Ahmed", "Hossam Mohamed", "أحمد علي"];
+  const studs = [];
+  for (let i = 0; i < 4; i++) studs.push(await mk(i === 0 ? { ...devices["iPhone 13"] } : {}));
+  // student 0 types the room code by hand; others use the room link
+  await studs[0].goto(WEB);
+  await studs[0].fill("#code", code.toLowerCase());
+  await studs[0].waitForSelector("#nameStep:not([hidden])");
+  ok("student opens the site and enters the room code");
+  await studs[0].fill("#nameq", "moh");
+  await studs[0].waitForSelector(".sugg");
+  const sugg = await studs[0].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent));
+  assert.deepStrictEqual(sugg.sort(), ["Mohamed Adel", "Mohamed Ahmed"]);
+  ok('typing "moh" shows ONLY Mohamed Adel + Mohamed Ahmed (not Hossam Mohamed, not Mahmoud)');
+  await studs[0].fill("#nameq", "M");
+  const m1 = await studs[0].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent));
+  assert.deepStrictEqual(m1.sort(), ["Mahmoud Hassan", "Mohamed Adel", "Mohamed Ahmed"]);
+  await studs[0].fill("#nameq", "Ho");
+  assert.deepStrictEqual(await studs[0].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent)), ["Hossam Mohamed"]);
+  await studs[0].fill("#nameq", "xyz");
+  assert.strictEqual(await studs[0].$$eval(".sugg", e => e.length), 0);
+  assert(await studs[0].isDisabled("#btnJoin"));
+  ok("1, 2 letters work; unknown names give no option and Join stays disabled");
+  await studs[0].fill("#nameq", "moh");
+  await shot(studs[0], "03-student-search-phone");
+
+  for (let i = 1; i < 4; i++) {
+    await studs[i].goto(WEB + "?room=" + code);
+    await studs[i].waitForSelector("#nameStep:not([hidden])");
+  }
+  await studs[3].fill("#nameq", "احم");
+  await studs[3].waitForSelector(".sugg");
+  assert.deepStrictEqual(await studs[3].$$eval(".sugg > span:first-child", els => els.map(e => e.textContent)), ["أحمد علي"]);
+  ok("Arabic search: احم finds أحمد علي (hamza-insensitive)");
+
+  const pick = async (p, q, name) => {
+    await p.fill("#nameq", q);
+    await p.locator(".sugg", { hasText: name }).click();
+    await p.waitForSelector("#selected:not([hidden])");
+  };
+  await pick(studs[0], "moh", "Mohamed Adel");
+  await pick(studs[1], "Moham", "Mohamed Ahmed");
+  await pick(studs[2], "hos", "Hossam Mohamed");
+  await pick(studs[3], "احم", "أحمد علي");
+  assert((await studs[0].textContent("#selected")).includes("BLUE TEAM"));
+  assert((await studs[1].textContent("#selected")).includes("GREEN TEAM"));
+  ok("selecting a full name shows the correct team");
+  await Promise.all(studs.map(p => p.click("#btnJoin")));
+  await Promise.all(studs.map(p => p.waitForSelector("#scr-lobby.active")));
+  assert((await studs[0].textContent("#lobbyTeam")).includes("NUMBER NINJAS"));
+  assert((await studs[1].textContent("#lobbyTeam")).includes("MATH TITANS"));
+  assert((await studs[2].textContent("#lobbyTeam")).includes("MATH TITANS"));
+  assert((await studs[3].textContent("#lobbyTeam")).includes("NUMBER NINJAS"));
+  ok("4 students joined at the same time, each on the correct team");
+  await shot(studs[0], "04-student-lobby-phone");
+
+  // duplicate registration from another device
+  const intruder = await mk();
+  await intruder.goto(WEB + "?room=" + code);
+  await intruder.waitForSelector("#nameStep:not([hidden])");
+  await intruder.fill("#nameq", "moh");
+  await intruder.waitForSelector(".sugg");
+  assert.strictEqual(await intruder.locator(".sugg.taken").count(), 2);
+  await intruder.locator(".sugg", { hasText: "Mohamed Adel" }).click();
+  assert(await intruder.isDisabled("#btnJoin"));
+  const forced = await (await fetch(API + "/exec", { method: "POST", body: JSON.stringify({ action: "join", code, studentId: "x", deviceToken: "intruder-device" }) })).json();
+  assert.strictEqual(forced.ok, false);
+  ok("a second device cannot join with an already-joined name or a made-up name");
+  await intruder.context().close();
+
+  await arena.waitForFunction(() => document.querySelectorAll("#rosterBlue .chip, #rosterGreen .chip").length === 4);
+  await teacher.waitForFunction(() => document.querySelectorAll("#joinedList .chip").length === 4);
+  ok("teacher dashboard + arena list the 4 joined students; 2 shown as not joined");
+  await shot(arena, "05-arena-lobby");
+
+  // ---------- start ----------
+  await teacher.click('[data-cmd="start"]');
+  await Promise.all(studs.map(p => p.waitForSelector("#scr-question.active")));
+  const qtexts = await Promise.all(studs.map(p => p.textContent("#qText")));
+  assert(qtexts.every(q => q === qtexts[0] && q.includes("1,326 cans")));
+  await arena.waitForFunction(t => document.getElementById("aQtext").textContent === t, qtexts[0]);
+  ok("all students + arena see the same question 1");
+
+  await studs[0].click('.ans[data-l="B"]');                                   // ~0-2 s  -> 100
+  await studs[0].waitForFunction(() => document.getElementById("qStatus").textContent.includes("locked"));
+  await advance(12000); await studs[1].click('.ans[data-l="B"]');            // ~12-14s -> 80
+  await advance(10000); await studs[2].click('.ans[data-l="A"]');            // ~22-24s -> 60 if correct (it is wrong)
+  await advance(12000); await studs[3].click('.ans[data-l="B"]');            // ~34-36s -> 40
+  for (const p of studs) await p.waitForFunction(() => document.getElementById("qStatus").textContent.includes("locked"));
+  ok("every student submitted one answer");
+  assert(await studs[0].isDisabled('.ans[data-l="C"]'));
+  await studs[0].click('.ans[data-l="C"]', { force: true }).catch(() => { });
+  await shot(studs[0], "06-student-answered-phone");
+
+  // refresh keeps progress
+  await studs[0].reload();
+  await studs[0].waitForSelector("#scr-question.active");
+  await studs[0].waitForFunction(() => document.getElementById("qStatus").textContent.includes("locked: B"));
+  ok("refreshing the page keeps the student in the game with the answer locked");
+
+  await arena.waitForFunction(() => document.getElementById("ansTxt").textContent.startsWith("4 / 4"));
+  await shot(arena, "07-arena-question");
+  ok("arena shows 4 / 4 answered");
+
+  // ---------- review ----------
+  await teacher.click('[data-tab="review"]');
+  await teacher.waitForFunction(() => document.querySelectorAll("#reviewBody tr[data-id]").length === 4);
+  const subs = [null, ...(await (await fetch(API + "/__sheet?name=Submissions")).json()).slice(1).filter(r => r[1] === code)];
+  const secs = Object.fromEntries(subs.slice(1).map(r => [r[4], r[7]]));
+  console.log("     recorded seconds:", JSON.stringify(secs));
+  assert(subs.slice(1).every(r => r[8] === "pending" && r[9] === 0));
+  ok("submissions saved in the Submissions sheet as pending with 0 points (no auto-correction)");
+  await shot(teacher, "08-teacher-review-before");
+
+  const mark = async (name, act) => {
+    await teacher.locator("#reviewBody tr", { hasText: name }).locator('[data-act="' + act + '"]').click();
+  };
+  await mark("Mohamed Adel", "correct");
+  await mark("Mohamed Ahmed", "correct");
+  await mark("Hossam Mohamed", "incorrect");
+  await mark("أحمد علي", "correct");
+  const expected = n => { const s = secs[n]; return s <= 10 ? 100 : s <= 20 ? 80 : s <= 30 ? 60 : s <= 45 ? 40 : s <= 60 ? 20 : 0; };
+  const blue = expected("Mohamed Adel") + expected("أحمد علي"), green = expected("Mohamed Ahmed");
+  await teacher.waitForFunction(([b, g]) => document.getElementById("lsBlue").textContent == b && document.getElementById("lsGreen").textContent == g, [blue, green], { timeout: 15000 });
+  ok("teacher marks answers; speed points correct (Blue " + blue + ", Green " + green + ")");
+  // mark again -> no double points
+  await mark("Mohamed Adel", "correct");
+  await new Promise(r => setTimeout(r, 2500));
+  assert.strictEqual(Number(await teacher.textContent("#lsBlue")), blue);
+  ok("marking the same answer correct again does not add points twice");
+
+  await Promise.all([...studs, arena].map(p => p.waitForFunction(([b, g]) => {
+    const pick = id => document.getElementById(id); const bb = pick("msBlue") || pick("sBlue"), gg = pick("msGreen") || pick("sGreen");
+    return bb.textContent == b && gg.textContent == g;
+  }, [blue, green], { timeout: 15000 })));
+  assert((await studs[0].textContent("#hudPts")).startsWith(String(expected("Mohamed Adel"))));
+  ok("team scores updated on every student device and the arena");
+
+  // undo + adjust
+  await mark("Hossam Mohamed", "pending");
+  await teacher.locator("#reviewBody tr", { hasText: "Hossam Mohamed" }).locator("input").fill("25");
+  await mark("Hossam Mohamed", "adjust");
+  await teacher.waitForFunction(g => document.getElementById("lsGreen").textContent == g, green + 25, { timeout: 15000 });
+  ok("undo + manual score adjustment work");
+  await shot(teacher, "09-teacher-review-after");
+
+  // pause / resume / next / prev
+  await teacher.click('[data-cmd="pause"]');
+  await studs[1].waitForSelector("#overlay:not([hidden])");
+  await arena.waitForSelector("#overlay:not([hidden])");
+  ok("pause shows PAUSED on student + arena screens");
+  await teacher.click('[data-cmd="resume"]');
+  await studs[1].waitForSelector("#overlay", { state: "hidden" });
+  await teacher.click('[data-cmd="next"]');
+  await Promise.all(studs.map(p => p.waitForFunction(() => document.getElementById("qText").textContent.includes("Layla"))));
+  assert(!(await studs[0].isDisabled('.ans[data-l="A"]')));
+  ok("next question reaches everyone, answers unlocked again");
+  await teacher.click('[data-tab="game"]');
+  await teacher.click('[data-cmd="prev"]');
+  await studs[2].waitForFunction(() => document.getElementById("qText").textContent.includes("1,326"));
+  assert(await studs[2].isDisabled('.ans[data-l="C"]'));
+  ok("previous question: students who already answered stay locked");
+  await teacher.click('[data-cmd="next"]');
+  await studs[2].waitForFunction(() => document.getElementById("qText").textContent.includes("Layla"));
+
+  // dashboard protection
+  const outsider = await mk();
+  await outsider.goto(WEB + "teacher.html");
+  await outsider.waitForSelector("#login:not([hidden])");
+  assert(await outsider.isHidden("#dash"));
+  const hack = await (await fetch(API + "/exec", { method: "POST", body: JSON.stringify({ action: "control", cmd: "end" }) })).json();
+  assert.strictEqual(hack.error, "AUTH");
+  const hack2 = await (await fetch(API + "/exec", { method: "POST", body: JSON.stringify({ action: "control", cmd: "end", token: "guess" }) })).json();
+  assert.strictEqual(hack2.error, "AUTH");
+  ok("teacher dashboard + controls are protected (no token / fake token rejected)");
+  await outsider.context().close();
+
+  // teacher refresh keeps session + game
+  await teacher.reload();
+  await teacher.waitForSelector("#dash:not([hidden])");
+  await teacher.waitForFunction(() => document.getElementById("gcQ").textContent.startsWith("2/"));
+  ok("teacher page refresh keeps login and game progress");
+
+  // end
+  teacher.once("dialog", d => d.accept());
+  await teacher.click('[data-cmd="end"]');
+  await Promise.all(studs.map(p => p.waitForSelector("#scr-end.active")));
+  await arena.waitForSelector("#stEnd:not([hidden])");
+  const win = blue > green + 25 ? "NUMBER NINJAS" : "MATH TITANS";
+  assert((await arena.textContent("#winTitle")).includes(win));
+  ok("end game: winner celebration (" + win + ") on arena + students");
+  await new Promise(r => setTimeout(r, 1200));
+  await shot(arena, "10-arena-winner");
+  await shot(studs[1], "11-student-end");
+
+  assert.deepStrictEqual(errors.filter(e => !/fonts\.g|Failed to load resource/.test(e)), []);
+  ok("no JavaScript errors in any page");
+  await browser.close();
+  console.log("\nE2E: all " + step + " checks passed");
+})().catch(e => { console.error("\n✘ FAILED:", e); process.exit(1); });

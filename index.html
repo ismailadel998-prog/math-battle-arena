@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Math Battle Arena</title>
+  <meta name="description" content="Math Battle Arena — Number Ninjas vs Math Titans">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="student">
+  <div class="bg-arena"></div>
+  <main>
+    <!-- ============ JOIN ============ -->
+    <section id="scr-join" class="screen active">
+      <div class="hero">
+        <img class="mascot team-blue" src="assets/img/ninja.svg" alt="">
+        <h1 class="title-logo">MATH<br>BATTLE<br><span class="x">ARENA</span></h1>
+        <img class="mascot alt team-green" src="assets/img/titan.svg" alt="">
+      </div>
+      <p class="tagline">🔵 Number Ninjas &nbsp;VS&nbsp; Math Titans 🟢</p>
+
+      <div class="card join-card">
+        <label class="lbl" for="code">1 · Room code</label>
+        <input id="code" class="input code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE">
+
+        <div id="nameStep" hidden>
+          <label class="lbl" for="nameq">2 · Type the first letters of your FIRST name</label>
+          <input id="nameq" class="input" autocomplete="off" spellcheck="false" placeholder="e.g. Moh  /  محم" dir="auto">
+          <div id="suggest" class="suggest" role="listbox"></div>
+          <div id="selected" class="selected-name" hidden></div>
+        </div>
+
+        <button id="btnJoin" class="btn btn-gold btn-lg btn-block" style="margin-top:18px" disabled>JOIN GAME</button>
+        <p id="joinMsg" class="msg center"></p>
+      </div>
+    </section>
+
+    <!-- ============ LOBBY ============ -->
+    <section id="scr-lobby" class="screen">
+      <div class="card lobby-card" id="lobbyCard">
+        <div class="eyebrow">You are in!</div>
+        <img class="mascot" id="lobbyMascot" src="assets/img/ninja.svg" alt="">
+        <h2 style="margin:4px 0" id="lobbyName"></h2>
+        <div class="team-title" id="lobbyTeam"></div>
+        <p class="muted" id="lobbyRoom"></p>
+        <p style="font-weight:800;font-size:1.15rem;margin:16px 0 0">Waiting for your teacher to start</p>
+        <div class="waiting"><i></i><i></i><i></i></div>
+        <p class="muted" id="lobbyCount"></p>
+      </div>
+    </section>
+
+    <!-- ============ QUESTION ============ -->
+    <section id="scr-question" class="screen">
+      <div class="hud">
+        <div class="me" id="hudMe"><img id="hudImg" src="assets/img/ninja.svg" alt=""><div><b id="hudName"></b><span class="muted" id="hudPts">0 pts</span></div></div>
+        <div class="center"><div class="qcount" id="qCount">Q1/6</div><div class="muted" id="gClock">7:00</div></div>
+        <div class="ring" id="qRing"></div>
+      </div>
+      <div class="card qcard">
+        <div class="eyebrow">Question <span id="qNum">1</span></div>
+        <p class="qtext" id="qText" dir="auto"></p>
+      </div>
+      <div class="answers" id="answers"></div>
+      <div class="status-line" id="qStatus">Tap your answer — you get ONE try!</div>
+      <div class="mini-scores">
+        <div class="ms team-blue"><span>🔵 Ninjas</span><span id="msBlue">0</span></div>
+        <div class="ms team-green"><span>🟢 Titans</span><span id="msGreen">0</span></div>
+      </div>
+    </section>
+
+    <!-- ============ END ============ -->
+    <section id="scr-end" class="screen">
+      <div class="card end-card" id="endCard">
+        <div class="eyebrow">Game over</div>
+        <img class="mascot" id="endMascot" src="assets/img/ninja.svg" alt="">
+        <div class="win-title" id="endTitle"></div>
+        <div class="mini-scores">
+          <div class="ms team-blue"><span>🔵 Ninjas</span><span id="endBlue">0</span></div>
+          <div class="ms team-green"><span>🟢 Titans</span><span id="endGreen">0</span></div>
+        </div>
+        <p style="font-size:1.2rem;font-weight:800;margin-top:18px">Your points: <span id="endMine" style="color:var(--gold)">0</span></p>
+        <p class="muted">Great thinking! Find · Write · Solve</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="overlay" class="overlay" hidden><div><div class="big" id="ovText">PAUSED</div><p class="center muted" id="ovSub" style="font-size:1.2rem;font-weight:700"></p></div></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/student.js"></script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arena Display</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="arena">
+  <div class="bg-arena"></div>
+  <div class="arena-wrap">
+    <header class="arena-head">
+      <h1 class="title-logo">MATH BATTLE <span class="x">ARENA</span></h1>
+      <div class="room-pill"><div id="roomName" class="muted">Waiting for a room…</div><div>ROOM <span class="code" id="roomCode">-----</span></div></div>
+    </header>
+
+    <section class="scoreboard">
+      <div class="teampanel team-blue" id="tpBlue">
+        <img class="mascot" src="assets/img/ninja.svg" alt="">
+        <div><div class="tname">🔵 BLUE TEAM</div><div class="tsub">NUMBER NINJAS · <span id="nBlue">0</span> players</div><div class="score" id="sBlue">0</div></div>
+      </div>
+      <div class="vs">
+        <div class="ring" id="aRing"></div>
+        <div class="gclock" id="aClock">GAME 7:00</div>
+      </div>
+      <div class="teampanel team-green right" id="tpGreen">
+        <img class="mascot alt" src="assets/img/titan.svg" alt="">
+        <div><div class="tname">GREEN TEAM 🟢</div><div class="tsub"><span id="nGreen">0</span> players · MATH TITANS</div><div class="score" id="sGreen">0</div></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <!-- lobby -->
+      <div id="stLobby" class="lobby-board">
+        <div class="roster" id="rosterBlue"></div>
+        <div class="card join-box">
+          <div class="eyebrow">Join the battle</div>
+          <div class="bigcode" id="bigCode">-----</div>
+          <div class="url" id="joinUrl"></div>
+          <p class="muted" style="font-weight:700">Open the link · type the room code · find your first name</p>
+        </div>
+        <div class="roster right" id="rosterGreen"></div>
+      </div>
+      <!-- question -->
+      <div id="stQuestion" class="qboard" hidden>
+        <div class="progress" id="progress"></div>
+        <div class="card"><div class="eyebrow center" id="aQnum">QUESTION 1</div><p class="qtext" id="aQtext" dir="auto"></p></div>
+        <div class="answers" id="aAnswers"></div>
+      </div>
+      <!-- end -->
+      <div id="stEnd" class="celebrate" hidden>
+        <img class="mascot" id="winMascot" src="assets/img/ninja.svg" alt="">
+        <div class="win-title" id="winTitle"></div>
+        <div class="top3" id="top3"></div>
+      </div>
+    </section>
+
+    <footer class="arena-foot" id="foot">
+      <div class="answered-txt" id="ansTxt">0 / 0 answered</div>
+      <div class="answered-bar"><div id="ansBar"></div></div>
+    </footer>
+  </div>
+
+  <div id="overlay" class="overlay" hidden><div class="big" id="ovText">PAUSED</div></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/arena.js"></script>
+</body>
+</html>

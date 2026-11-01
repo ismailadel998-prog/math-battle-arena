@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Math Titans mascot">
+  <defs>
+    <radialGradient id="tg" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#22d36f" stop-opacity=".55"/><stop offset="1" stop-color="#22d36f" stop-opacity="0"/></radialGradient>
+    <linearGradient id="th" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3ee88a"/><stop offset="1" stop-color="#0f8a45"/></linearGradient>
+    <linearGradient id="tm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9fff1"/><stop offset="1" stop-color="#9fd9b7"/></linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="98" fill="url(#tg)"/>
+  <!-- horns -->
+  <path d="M44 82 C22 70 18 44 26 26 C34 46 48 56 62 62 Z" fill="url(#tm)" stroke="#0b5c2f" stroke-width="3"/>
+  <path d="M156 82 C178 70 182 44 174 26 C166 46 152 56 138 62 Z" fill="url(#tm)" stroke="#0b5c2f" stroke-width="3"/>
+  <!-- helmet -->
+  <path d="M40 100 C40 50 70 30 100 30 C130 30 160 50 160 100 L160 132 C160 160 132 180 100 182 C68 180 40 160 40 132 Z" fill="url(#th)" stroke="#0b5c2f" stroke-width="4"/>
+  <!-- crest -->
+  <path d="M92 30 L100 12 L108 30 L104 70 L96 70 Z" fill="#ffd34d" stroke="#a87b00" stroke-width="2.5"/>
+  <!-- visor T -->
+  <path d="M56 98 L144 98 Q148 98 148 104 L148 114 Q148 120 142 120 L112 120 L112 160 Q100 168 88 160 L88 120 L58 120 Q52 120 52 114 L52 104 Q52 98 56 98 Z" fill="#06331a"/>
+  <!-- glowing eyes -->
+  <path d="M62 106 L90 108 L88 114 L64 113 Z" fill="#b8ffd6"/>
+  <path d="M138 106 L110 108 L112 114 L136 113 Z" fill="#b8ffd6"/>
+  <!-- rivets -->
+  <circle cx="58" cy="140" r="4" fill="#0b5c2f"/><circle cx="142" cy="140" r="4" fill="#0b5c2f"/>
+  <circle cx="64" cy="158" r="4" fill="#0b5c2f"/><circle cx="136" cy="158" r="4" fill="#0b5c2f"/>
+  <!-- plus emblem -->
+  <g transform="translate(100 74)">
+    <circle r="13" fill="#06331a" stroke="#ffd34d" stroke-width="2.5"/>
+    <path d="M-6 0 H6 M0 -6 V6" stroke="#ffd34d" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
