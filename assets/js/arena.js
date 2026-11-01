@@ -47,6 +47,9 @@
       const chips = list => list.map(p => '<span class="chip ' + MBA.TEAM[p.team].cls + '" dir="auto"><span class="dot"></span>' + esc(p.name) + '</span>').join("");
       setHTML("rosterBlue", chips(blue));
       setHTML("rosterGreen", chips(green));
+      const wait = s.players.filter(p => !MBA.TEAM[p.team]);
+      setHTML("rosterWait", wait.length ? '<div class="muted" style="width:100%;font-weight:800">⏳ Waiting for teams (' + wait.length + ')</div>' +
+        wait.map(p => '<span class="chip" dir="auto">' + esc(p.name) + '</span>').join("") : "");
     }
 
     if (live && s.question) {

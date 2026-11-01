@@ -26,9 +26,7 @@ t("upload students, duplicates skipped (incl. Arabic spelling variants)", () => 
     { name: "سارة خالد", team: "أخضر" }] });
   assert.strictEqual(r.added, 6); assert.strictEqual(r.skipped.length, 2);
   const st = T({ action: "teacherState" }).students;
-  assert.strictEqual(st.find(s => s.name === "أحمد علي").team, "Blue");
-  assert.strictEqual(st.find(s => s.name === "سارة خالد").team, "Green");
-  assert.strictEqual(st.find(s => s.name === "Mahmoud Hassan").team, "");
+  assert(st.every(s => s.team === ""), "nobody has a team before joining");
 });
 
 let code;
@@ -37,16 +35,14 @@ t("create room gives a 5-letter code", () => { code = T({ action: "createRoom", 
 const S = () => T({ action: "teacherState" }).students;
 const id = n => S().find(s => s.name === n).id;
 
-t("joining needs a valid room, a listed student and a team", () => {
+t("joining needs a valid room and a listed student (no team needed)", () => {
   assert.strictEqual(P({ action: "join", code: "ZZZZZ", studentId: id("Mohamed Adel"), deviceToken: "dev-aaaaaaaa" }).error, "ROOM_CLOSED");
   assert.strictEqual(P({ action: "join", code, studentId: "S-NOPE", deviceToken: "dev-aaaaaaaa" }).error, "NOT_IN_LIST");
-  assert.strictEqual(P({ action: "join", code, studentId: id("Mahmoud Hassan"), deviceToken: "dev-mmmmmmmm" }).error, "NO_TEAM");
 });
-t("auto-assign gives the unassigned student a team", () => { T({ action: "autoTeams" }); assert(["Blue", "Green"].includes(S().find(s => s.name === "Mahmoud Hassan").team)); });
 
 t("join + duplicate registration prevented", () => {
   const a = P({ action: "join", code, studentId: id("Mohamed Adel"), deviceToken: "dev-aaaaaaaa" });
-  assert(a.ok); assert.strictEqual(a.student.team, "Blue");
+  assert(a.ok); assert.strictEqual(a.student.team, "", "no team yet after joining");
   assert(P({ action: "join", code, studentId: id("Mohamed Adel"), deviceToken: "dev-aaaaaaaa" }).rejoined, "same device can rejoin after refresh");
   assert.strictEqual(P({ action: "join", code, studentId: id("Mohamed Adel"), deviceToken: "dev-otherrrr" }).error, "ALREADY_JOINED");
   assert.strictEqual(P({ action: "join", code, studentId: id("Mohamed Ahmed"), deviceToken: "dev-aaaaaaaa" }).error, "DEVICE_USED");
@@ -56,6 +52,18 @@ t("join + duplicate registration prevented", () => {
 });
 
 const sub = (name, dev, q, ans) => P({ action: "submit", code, studentId: id(name), deviceToken: dev, qIndex: q, answer: ans });
+
+t("teacher divides the joined players into two even random teams", () => {
+  assert.strictEqual(T({ action: "setTeam", studentId: id("Mahmoud Hassan"), team: "Blue" }).error, "NOT_JOINED");
+  const r = T({ action: "divideTeams" });
+  assert.deepStrictEqual(r.counts, { Blue: 2, Green: 2 });
+  const s = G({ action: "state", code });
+  assert(s.players.every(p => p.team === "Blue" || p.team === "Green"));
+  // fix the teams so the scoring checks below are predictable
+  [["Mohamed Adel", "Blue"], ["Mohamed Ahmed", "Green"], ["Hossam Mohamed", "Green"], ["أحمد علي", "Blue"]]
+    .forEach(([n, tm]) => assert(T({ action: "setTeam", studentId: id(n), team: tm }).ok));
+  assert(P({ action: "join", code, studentId: id("Mohamed Adel"), deviceToken: "dev-aaaaaaaa" }).student.team === "Blue", "rejoin keeps the team");
+});
 
 t("cannot answer before the game starts", () => assert.strictEqual(sub("Mohamed Adel", "dev-aaaaaaaa", 0, "A").error, "NOT_RUNNING"));
 t("start game -> everyone sees question 1, answer key hidden from students", () => {
@@ -112,6 +120,9 @@ t("points table boundaries 10/11/20/21/30/31/45/46/60", () => {
 t("question closes after 60 s", () => {
   rt.advance(25000);   // now 70 s into Q1
   const r = P({ action: "join", code, studentId: id("سارة خالد"), deviceToken: "dev-eeeeeeee" }); assert(r.ok);
+  assert(["Blue", "Green"].includes(r.student.team), "late joiner is placed in a team automatically");
+  const gs = G({ action: "state", code }).players;
+  assert(Math.abs(gs.filter(p => p.team === "Blue").length - gs.filter(p => p.team === "Green").length) <= 1);
   assert.strictEqual(sub("سارة خالد", "dev-eeeeeeee", 0, "A").error, "TIME_UP");
 });
 
@@ -178,10 +189,6 @@ t("classes: separate lists, room limited to its class", () => {
   T({ action: "uploadStudents", mode: "replace", className: "Class 2", students: [{ name: "Omar Obada", team: "" }, { name: "Yazan Alhabian", team: "" }] });
   let ts = T({ action: "teacherState" });
   assert.deepStrictEqual(ts.classes.map(c => c.name + ":" + c.count), ["Class 1:3", "Class 2:2"]);
-  T({ action: "autoTeams" });
-  ts = T({ action: "teacherState" });
-  const c1 = ts.students.filter(s => s.className === "Class 1");
-  assert.strictEqual(c1.filter(s => s.team === "Blue").length, 2); assert.strictEqual(c1.filter(s => s.team === "Green").length, 1);
   // replacing Class 2 does not touch Class 1
   T({ action: "uploadStudents", mode: "replace", className: "Class 2", students: [{ name: "Omar Obada", team: "Green" }, { name: "Yazan Alhabian", team: "Blue" }, { name: "Rayan Rafat", team: "Blue" }] });
   ts = T({ action: "teacherState" });
@@ -204,6 +211,27 @@ t("classes: separate lists, room limited to its class", () => {
 t("old sheets get the new className column added", () => {
   const data = rt.sheet("Students"); assert.strictEqual(data[0][5], "className");
   assert.strictEqual(rt.sheet("Rooms")[0][5], "className");
+});
+t("Start without dividing first: everyone still gets a team", () => {
+  const c = T({ action: "createRoom", name: "auto", className: "Class 2" }).room.code;
+  const ts = T({ action: "teacherState" }).students.filter(s => s.className === "Class 2");
+  ts.forEach((s, i) => assert(P({ action: "join", code: c, studentId: s.id, deviceToken: "dev-auto000" + i }).ok));
+  assert(G({ action: "state", code: c }).players.every(p => p.team === ""));
+  T({ action: "control", cmd: "start" });
+  const pl = G({ action: "state", code: c }).players;
+  assert(pl.every(p => p.team === "Blue" || p.team === "Green"));
+  assert(Math.abs(pl.filter(p => p.team === "Blue").length - pl.filter(p => p.team === "Green").length) <= 1);
+  assert.strictEqual(T({ action: "divideTeams" }).changed, 0, "teams are not reshuffled once the game has started");
+  // moving a student to the other team mid-game moves their points too
+  const me = pl[0], other = me.team === "Blue" ? "Green" : "Blue";
+  rt.advance(3000);
+  P({ action: "submit", code: c, studentId: me.id, deviceToken: "dev-auto0000", qIndex: 0, answer: "B" });
+  const sub = T({ action: "teacherState" }).submissions.find(x => x.studentId === me.id);
+  T({ action: "review", submissionId: sub.id, status: "correct" });
+  assert.strictEqual(G({ action: "state", code: c }).teams[me.team], 100);
+  T({ action: "setTeam", studentId: me.id, team: other });
+  const t2 = G({ action: "state", code: c }).teams;
+  assert.strictEqual(t2[other], 100); assert.strictEqual(t2[me.team], 0);
 });
 t("logout invalidates the token", () => { T({ action: "logout" }); assert.strictEqual(T({ action: "teacherState" }).error, "AUTH"); });
 

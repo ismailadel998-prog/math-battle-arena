@@ -76,15 +76,17 @@ You can change it there at any time. It is never in the website code.
 ## STEP 3: Get ready for class
 
 1. Open `https://USERNAME.github.io/math-battle-arena/teacher.html` and log in with your password.
-2. **👥 Students tab:** type a **Class name** (e.g. `Class 1`), then upload that class's Excel or CSV file. Column 1 = full name, column 2 = team (`Blue`/`Green`, or `أزرق`/`أخضر`).
+2. **👥 Students tab:** type a **Class name** (e.g. `Class 1`), then upload that class's Excel or CSV file (column 1 = full name).
    Repeat for each class. Every class keeps its own list, and the dropdown above the student list filters by class.
-   The team column is optional: you can choose teams from the dropdowns, or press **Auto-assign** to split students evenly.
    Duplicate names are skipped automatically. See `sample-students.csv` for an example.
 3. **🎮 Game tab:** under **Which class is playing?** choose the class, then press **Create new room**. You get a 5-letter code.
    Only that class's names appear when students search, and only they can join.
 4. Press **📋 Copy room link** and send it to the students. The code is already filled in, so they only type the first letters of their first name.
 5. Open **📺 Arena screen** and share that browser tab in Zoom, Teams or Meet, or show it on the classroom projector.
-6. When everyone has joined, press **▶ Start game**.
+6. Students join **without a team**. When everyone is in, press **🎲 Divide into teams** (Game tab). The joined students are split randomly
+   into two even teams, and every phone and the arena screen show the result. Press it again for a new split, or click a name to move
+   one student. Anyone who joins later goes to the smaller team automatically.
+7. Press **▶ Start game**. (If you forget to divide, Start divides everyone first.)
 
 ### During the game
 - Each question gives students 60 seconds. The whole game lasts 7 minutes. Press **Next ▶** to move on. Pause, Resume and Next are always at the top of the dashboard.
@@ -104,7 +106,6 @@ You can change it there at any time. It is never in the website code.
 |---|---|
 | A student's name says "already joined" | They joined on another device. In the **Students** tab press **Release** next to their name, then they can join again. |
 | A student refreshed or closed the page | Nothing is lost. They open the same link and are put straight back into the game. |
-| "Your teacher has not given you a team yet" | Choose a team for that student in the Students tab. |
 | A student can't find their name | Check the spelling in the Students tab, or add them with **Add one student**. |
 | Phones show "Reconnecting…" | The internet connection dropped. The page retries on its own. |
 

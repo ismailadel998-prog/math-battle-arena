@@ -54,12 +54,6 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await teacher.selectOption("#stuClass", "Class 1");
   await teacher.waitForFunction(() => document.querySelectorAll("#stuBody tr").length === 6);
   ok("student list can be filtered by class");
-  // change a team via dropdown then change back
-  const row = teacher.locator("#stuBody tr", { hasText: "Mahmoud Hassan" });
-  await row.locator("select").selectOption("Green");
-  await teacher.waitForFunction(() => [...document.querySelectorAll("#stuBody tr")].some(r => r.textContent.includes("Mahmoud") && r.querySelector("select").value === "Green"));
-  await advance(0);
-  ok("teacher assigns a team from the dashboard");
   await shot(teacher, "02-teacher-students");
 
   // create room
@@ -128,17 +122,13 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await pick(studs[1], "Moham", "Mohamed Ahmed");
   await pick(studs[2], "hos", "Hossam Mohamed");
   await pick(studs[3], "احم", "أحمد علي");
-  assert((await studs[0].textContent("#selected")).includes("BLUE TEAM"));
-  assert((await studs[1].textContent("#selected")).includes("GREEN TEAM"));
-  ok("selecting a full name shows the correct team");
+  assert((await studs[0].textContent("#selected")).includes("chosen after you join"));
+  ok("selecting a full name: no team yet, Join enabled");
   await Promise.all(studs.map(p => p.click("#btnJoin")));
   await Promise.all(studs.map(p => p.waitForSelector("#scr-lobby.active")));
-  assert((await studs[0].textContent("#lobbyTeam")).includes("NUMBER NINJAS"));
-  assert((await studs[1].textContent("#lobbyTeam")).includes("MATH TITANS"));
-  assert((await studs[2].textContent("#lobbyTeam")).includes("MATH TITANS"));
-  assert((await studs[3].textContent("#lobbyTeam")).includes("NUMBER NINJAS"));
-  ok("4 students joined at the same time, each on the correct team");
-  await shot(studs[0], "04-student-lobby-phone");
+  for (const p of studs) assert((await p.textContent("#lobbyTeam")).includes("Teams are chosen soon"));
+  ok("4 students joined at the same time; all waiting for teams");
+  await shot(studs[0], "04a-student-waiting-phone");
 
   // duplicate registration from another device
   const intruder = await mk();
@@ -154,10 +144,30 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   ok("a second device cannot join with an already-joined name or a made-up name");
   await intruder.context().close();
 
-  await arena.waitForFunction(() => document.querySelectorAll("#rosterBlue .chip, #rosterGreen .chip").length === 4);
+  await arena.waitForFunction(() => document.querySelectorAll("#rosterWait .chip").length === 4);
   await teacher.waitForFunction(() => document.querySelectorAll("#joinedList .chip").length === 4);
-  ok("teacher dashboard + arena list the 4 joined students; 2 shown as not joined");
+  ok("teacher dashboard + arena list the 4 joined students as waiting for teams");
+
+  // ---------- divide into teams AFTER joining ----------
+  await teacher.click("#btnDivide");
+  await teacher.waitForFunction(() => /🔵 2\s+·\s+🟢 2/.test(document.getElementById("teamSplit").textContent));
+  await arena.waitForFunction(() => document.querySelectorAll("#rosterBlue .chip").length === 2 && document.querySelectorAll("#rosterGreen .chip").length === 2);
+  await Promise.all(studs.map(p => p.waitForFunction(() => /BLUE TEAM|GREEN TEAM/.test(document.getElementById("lobbyTeam").textContent))));
+  ok("teacher presses Divide: 2 vs 2, every phone and the arena show the teams");
+  await shot(studs[0], "04b-student-team-revealed-phone");
   await shot(arena, "05-arena-lobby");
+  // arrange known teams by clicking names (tests moving a student)
+  const want = { "Mohamed Adel": "Blue", "Mohamed Ahmed": "Green", "Hossam Mohamed": "Green", "أحمد علي": "Blue" };
+  for (const [n, tm] of Object.entries(want)) {
+    const st = await (await fetch(API + "/exec?action=state&code=" + code)).json();
+    if (st.players.find(p => p.name === n).team !== tm) {
+      await teacher.locator("#joinedList .chip", { hasText: n }).click();
+      await teacher.waitForFunction(([n, cls]) => [...document.querySelectorAll("#joinedList .chip")].some(c => c.textContent.includes(n) && c.classList.contains(cls)), [n, tm === "Blue" ? "team-blue" : "team-green"]);
+    }
+  }
+  const names4 = ["Mohamed Adel", "Mohamed Ahmed", "Hossam Mohamed", "أحمد علي"];
+  for (let i = 0; i < 4; i++) await studs[i].waitForFunction(lbl => document.getElementById("lobbyTeam").textContent.includes(lbl), want[names4[i]] === "Blue" ? "NUMBER NINJAS" : "MATH TITANS");
+  ok("clicking a name moves the student to the other team (phones update)");
 
   // ---------- start ----------
   await teacher.click('[data-cmd="start"]');

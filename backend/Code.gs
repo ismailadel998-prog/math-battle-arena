@@ -99,7 +99,7 @@ function route_(p) {
     case 'addStudent':   requireTeacher_(p); return uploadStudents_({ mode: 'append', className: p.className, students: [{ name: p.name, team: p.team }] }, now);
     case 'removeClass':  requireTeacher_(p); return removeClass_(p);
     case 'setTeam':      requireTeacher_(p); return setTeam_(p);
-    case 'autoTeams':    requireTeacher_(p); return autoTeams_();
+    case 'divideTeams':  requireTeacher_(p); return divideTeams_(p);
     case 'removeStudent':requireTeacher_(p); return removeStudent_(p);
     case 'releaseStudent': requireTeacher_(p); return releaseStudent_(p);
     default: throw err_('UNKNOWN', 'Unknown action: ' + a);
@@ -262,15 +262,18 @@ function timing_(st, now) {
 
 /* ============================ SCORES ============================ */
 
-function computeScores_(code, subs, students) {
-  var byId = {};
+function computeScores_(code, subs, students, players) {
+  var byId = {}, teamOf = {};
+  (players || []).forEach(function (p) { if (str_(p.roomCode) === code) teamOf[str_(p.studentId)] = str_(p.team); });
   students.forEach(function (s) {
-    byId[str_(s.studentId)] = { id: str_(s.studentId), name: str_(s.name), team: str_(s.team), score: 0, correct: 0, answered: 0 };
+    var id = str_(s.studentId);
+    byId[id] = { id: id, name: str_(s.name), team: teamOf[id] || '', score: 0, correct: 0, answered: 0 };
   });
   subs.forEach(function (x) {
     if (str_(x.roomCode) !== code) return;
     var id = str_(x.studentId);
-    if (!byId[id]) byId[id] = { id: id, name: str_(x.name), team: str_(x.team), score: 0, correct: 0, answered: 0, removed: true };
+    if (!byId[id]) byId[id] = { id: id, name: str_(x.name), team: teamOf[id] || str_(x.team), score: 0, correct: 0, answered: 0, removed: true };
+    else if (!byId[id].team) byId[id].team = str_(x.team);
     byId[id].score += Number(x.points) || 0;
     byId[id].answered += 1;
     if (str_(x.status) === 'correct' || (str_(x.status) === 'adjusted' && Number(x.points) > 0)) byId[id].correct += 1;
@@ -282,9 +285,9 @@ function computeScores_(code, subs, students) {
 
 function saveScores_(code, now) {
   var subs = readRows_('Submissions'), students = readRows_('Students');
-  var sc = computeScores_(code, subs, students);
-  var others = readRows_('Scores').filter(function (r) { return str_(r.roomCode) !== code; });
   var players = readRows_('Players').filter(function (r) { return str_(r.roomCode) === code; });
+  var sc = computeScores_(code, subs, students, players);
+  var others = readRows_('Scores').filter(function (r) { return str_(r.roomCode) !== code; });
   var joined = {};
   players.forEach(function (p) { joined[str_(p.studentId)] = true; });
   var mine = Object.keys(sc.players).map(function (k) { return sc.players[k]; })
@@ -326,7 +329,7 @@ function buildSnapshot_() {
   var students = readRows_('Students');
   var subs = code ? readRows_('Submissions').filter(function (x) { return str_(x.roomCode) === code; }) : [];
   var players = code ? readRows_('Players').filter(function (x) { return str_(x.roomCode) === code; }) : [];
-  var sc = computeScores_(code, subs, students);
+  var sc = computeScores_(code, subs, students, players);
   var submittedByQ = {};
   subs.forEach(function (x) {
     var q = String(Number(x.qIndex));
@@ -334,7 +337,7 @@ function buildSnapshot_() {
   });
   var plist = players.map(function (p) {
     var id = str_(p.studentId), s = sc.players[id];
-    return { id: id, name: s ? s.name : str_(p.name), team: s ? s.team : str_(p.team), score: s ? s.score : 0 };
+    return { id: id, name: s ? s.name : str_(p.name), team: str_(p.team), score: s ? s.score : 0 };
   });
   return { st: st, room: room, questions: questions, players: plist, teams: sc.teams, submittedByQ: submittedByQ };
 }
@@ -388,7 +391,7 @@ function roster_(code) {
   var joined = {};
   snap.players.forEach(function (p) { joined[p.id] = true; });
   var list = readRows_('Students').filter(function (s) { return inClass_(s, snap.room); }).map(function (s) {
-    return { id: str_(s.studentId), name: str_(s.name), team: str_(s.team), joined: !!joined[str_(s.studentId)] };
+    return { id: str_(s.studentId), name: str_(s.name), joined: !!joined[str_(s.studentId)] };
   });
   return { ok: true, room: snap.room, students: list };
 }
@@ -403,8 +406,7 @@ function join_(p, now) {
     readRows_('Students').forEach(function (s) { if (str_(s.studentId) === sid) student = s; });
     if (!student) throw err_('NOT_IN_LIST', 'Your name is not on the class list. Ask your teacher.');
     if (!inClass_(student, findRoom_(code))) throw err_('NOT_IN_LIST', 'Your name is not on the list for this room. Check the room code with your teacher.');
-    var team = str_(student.team);
-    if (team !== 'Blue' && team !== 'Green') throw err_('NO_TEAM', 'Your teacher has not given you a team yet. Please wait and try again.');
+    var team = '';
     var players = readRows_('Players').filter(function (r) { return str_(r.roomCode) === code; });
     var mine = null, deviceUsed = null;
     players.forEach(function (r) {
@@ -413,8 +415,11 @@ function join_(p, now) {
     });
     if (mine) {
       if (str_(mine.deviceToken) !== tok) throw err_('ALREADY_JOINED', 'This name has already joined the game on another device. If this is you, ask your teacher to release your name.');
+      team = str_(mine.team);
     } else {
       if (deviceUsed) throw err_('DEVICE_USED', 'This device already joined as ' + str_(deviceUsed.name) + '.');
+      var divided = st.status !== 'lobby' || players.some(function (r) { return str_(r.team); });
+      if (divided) team = smallerTeam_(players);
       appendRows_('Players', [{ roomCode: code, studentId: sid, name: str_(student.name), team: team, deviceToken: tok, joinedAt: now }]);
       bump_();
     }
@@ -449,9 +454,7 @@ function submit_(p, now) {
       throw err_('TIME_UP', "Time's up for this question.");
     }
     var seconds = Math.min(st.questionSeconds, Math.floor(t.qElapsedMs / 1000));
-    var student = null;
-    readRows_('Students').forEach(function (s) { if (str_(s.studentId) === sid) student = s; });
-    var team = student ? str_(student.team) : str_(player.team);
+    var team = str_(player.team);
     appendRows_('Submissions', [{
       submissionId: uid_('X'), roomCode: code, qIndex: q, studentId: sid, name: str_(player.name), team: team,
       answer: ans, seconds: seconds, status: 'pending', points: 0, manual: false, submittedAt: now, reviewedAt: ''
@@ -488,7 +491,7 @@ function teacherState_(now) {
   students.forEach(function (s) { var c = str_(s.className); if (c) classes[c] = (classes[c] || 0) + 1; });
   var subs = readRows_('Submissions').filter(function (x) { return code && str_(x.roomCode) === code; });
   var players = readRows_('Players').filter(function (x) { return code && str_(x.roomCode) === code; });
-  var sc = computeScores_(code, subs, students);
+  var sc = computeScores_(code, subs, students, players);
   var joined = {};
   players.forEach(function (p) { joined[str_(p.studentId)] = Number(p.joinedAt) || 1; });
   return {
@@ -499,7 +502,7 @@ function teacherState_(now) {
     }),
     students: students.map(function (s) {
       var id = str_(s.studentId), p = sc.players[id];
-      return { id: id, name: str_(s.name), team: str_(s.team), className: str_(s.className), joinedAt: joined[id] || 0, score: p ? p.score : 0, correct: p ? p.correct : 0 };
+      return { id: id, name: str_(s.name), team: p ? p.team : '', className: str_(s.className), joinedAt: joined[id] || 0, score: p ? p.score : 0, correct: p ? p.correct : 0 };
     }),
     submissions: subs.map(function (x) {
       return { id: str_(x.submissionId), qIndex: Number(x.qIndex), studentId: str_(x.studentId), name: str_(x.name),
@@ -550,6 +553,7 @@ function control_(p, now) {
         if (st.status === 'running' || st.status === 'paused') throw err_('BAD_STATE', 'The game is already running.');
         if (st.status === 'ended') throw err_('BAD_STATE', 'This game has ended. Press Reset to play again.');
         if (!qCount) throw err_('NO_QUESTIONS', 'Add questions first.');
+        assignTeams_(st.currentRoom, false);
         st.status = 'running'; st.gameId = uid_('G'); st.qIndex = 0; st.qStartedAt = now; st.gameStartedAt = now; st.pausedAt = 0; st.endedAt = 0;
         break;
       case 'pause':
@@ -674,37 +678,55 @@ function uploadStudents_(p, now) {
   });
 }
 
-function setTeam_(p) {
-  var id = str_(p.studentId), team = normTeam_(p.team);
+/* ---------- teams are made AFTER students join (one set of teams per room) ---------- */
+
+function smallerTeam_(players) {
+  var c = { Blue: 0, Green: 0 };
+  players.forEach(function (r) { if (c[str_(r.team)] !== undefined) c[str_(r.team)]++; });
+  if (c.Blue === c.Green) return Math.random() < 0.5 ? 'Blue' : 'Green';
+  return c.Blue < c.Green ? 'Blue' : 'Green';
+}
+
+/** Splits the room's joined players into two even teams. reshuffle=false only places players without a team. */
+function assignTeams_(code, reshuffle) {
+  var all = readRows_('Players');
+  var mine = all.filter(function (r) { return str_(r.roomCode) === code; });
+  var todo = mine.filter(function (r) { return reshuffle || !str_(r.team); });
+  if (!todo.length) return { changed: 0 };
+  for (var i = todo.length - 1; i > 0; i--) {           // random order
+    var j = Math.floor(Math.random() * (i + 1)), t = todo[i]; todo[i] = todo[j]; todo[j] = t;
+  }
+  if (reshuffle) todo.forEach(function (r) { r.team = ''; });
+  todo.forEach(function (r) { r.team = smallerTeam_(mine); });
+  rewriteAll_('Players', all);
+  return { changed: todo.length };
+}
+
+function divideTeams_(p) {
   return withLock_(function () {
-    var found = false;
-    readRows_('Students').forEach(function (s) { if (str_(s.studentId) === id) { s.team = team; updateRow_('Students', s); found = true; } });
-    if (!found) throw err_('NOT_FOUND', 'Student not found.');
-    readRows_('Players').forEach(function (r) { if (str_(r.studentId) === id) { r.team = team; updateRow_('Players', r); } });
+    var st = readSettings_();
+    if (!st.currentRoom) throw err_('NO_ROOM', 'Create a room first.');
+    var reshuffle = p.reshuffle !== false && st.status === 'lobby';   // once the game started, keep existing teams
+    var r = assignTeams_(st.currentRoom, reshuffle);
+    var c = { Blue: 0, Green: 0 };
+    readRows_('Players').forEach(function (x) { if (str_(x.roomCode) === st.currentRoom && c[str_(x.team)] !== undefined) c[str_(x.team)]++; });
     bump_();
-    return { ok: true, team: team };
+    return { ok: true, changed: r.changed, counts: c };
   });
 }
 
-function autoTeams_() {
+function setTeam_(p) {
+  var id = str_(p.studentId), team = normTeam_(p.team);
+  if (!team) throw err_('BAD_REQUEST', 'Choose Blue or Green.');
   return withLock_(function () {
-    var rows = readRows_('Students');
-    var byClass = {};   // balance the teams inside each class
-    rows.forEach(function (s) {
-      var k = str_(s.className), c = byClass[k] = byClass[k] || { Blue: 0, Green: 0 };
-      if (c[str_(s.team)] !== undefined) c[str_(s.team)]++;
+    var st = readSettings_(), found = false;
+    readRows_('Players').forEach(function (r) {
+      if (str_(r.roomCode) === st.currentRoom && str_(r.studentId) === id) { r.team = team; updateRow_('Players', r); found = true; }
     });
-    var changed = 0;
-    rows.forEach(function (s) {
-      if (str_(s.team) === 'Blue' || str_(s.team) === 'Green') return;
-      var c = byClass[str_(s.className)];
-      s.team = c.Blue <= c.Green ? 'Blue' : 'Green';
-      c[s.team]++; changed++;
-    });
-    var c = byClass;
-    if (changed) rewriteAll_('Students', rows);
+    if (!found) throw err_('NOT_JOINED', 'This student has not joined the room yet.');
+    if (st.status !== 'lobby') saveScores_(st.currentRoom, Date.now());
     bump_();
-    return { ok: true, changed: changed, counts: c };
+    return { ok: true, team: team };
   });
 }
 

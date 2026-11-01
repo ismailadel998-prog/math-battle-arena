@@ -224,6 +224,11 @@ label.lbl { display: block; font-weight: 700; margin: 14px 0 6px; color: var(--m
 .lobby-card { text-align: center; max-width: 520px; margin: 24px auto; position: relative; overflow: hidden; }
 .lobby-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0, var(--tg), transparent 65%); opacity: .6; pointer-events: none; }
 .lobby-card .mascot { width: 160px; height: 160px; }
+.lobby-vs { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 8px 0; }
+.lobby-vs .mascot { width: 110px; height: 110px; }
+.lobby-vs span { font-family: var(--font-head); font-size: 2rem; color: var(--gold); }
+.lobby-card.reveal { animation: reveal .8s ease; }
+@keyframes reveal { 0% { transform: scale(.8) rotate(-3deg); opacity: .3; } 60% { transform: scale(1.06) rotate(1deg); opacity: 1; } 100% { transform: none; } }
 .team-title { font-family: var(--font-head); font-size: clamp(1.5rem, 6vw, 2.2rem); color: var(--tc); text-shadow: 0 0 22px var(--tg); margin: 6px 0; }
 .waiting { display: inline-flex; gap: 6px; margin-top: 14px; }
 .waiting i { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); animation: wdot 1s infinite; }
@@ -306,6 +311,9 @@ label.lbl { display: block; font-weight: 700; margin: 14px 0 6px; color: var(--m
 .roster { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; max-height: 56vh; overflow: hidden; }
 .roster .chip { animation: pop .4s; font-size: clamp(.8rem, 1.1vw, 1.1rem); }
 .roster.right { justify-content: flex-end; }
+.waiting-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; max-height: 22vh; overflow: hidden; }
+.chip.clickable { cursor: pointer; }
+.chip.clickable:hover { filter: brightness(1.25); }
 
 .celebrate { text-align: center; }
 .celebrate { align-self: center; }

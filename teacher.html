@@ -101,6 +101,11 @@
             </div>
             <div class="card">
               <h2>Joined <span class="muted" id="joinedN"></span></h2>
+              <div class="row" style="margin-bottom:10px">
+                <button class="btn btn-gold" id="btnDivide">🎲 Divide into teams</button>
+                <span class="muted" id="teamSplit"></span>
+              </div>
+              <p class="muted" id="divideHint" style="margin:0 0 10px;font-size:.9rem"></p>
               <div class="namelist" id="joinedList"></div>
               <h3>Not joined yet <span class="muted" id="notJoinedN"></span></h3>
               <div class="namelist" id="notJoinedList"></div>
@@ -135,7 +140,7 @@
         <div class="grid2">
           <div class="card">
             <h2>B · Upload student list</h2>
-            <p class="muted" style="margin-top:0">Excel (.xlsx / .xls) or CSV. One student per row. Column 1 = full name, column 2 = team (Blue / Green, optional). Header row is optional.</p>
+            <p class="muted" style="margin-top:0">Excel (.xlsx / .xls) or CSV. One student per row. Column 1 = full name. Header row is optional.</p>
             <label class="lbl" for="upClass" style="margin-top:0">Class name</label>
             <input id="upClass" class="input" list="classList" style="font-size:1rem;margin-bottom:12px" placeholder="e.g. Class 1 or 5A" autocomplete="off">
             <datalist id="classList"></datalist>
@@ -143,8 +148,8 @@
               <input type="file" id="file" accept=".csv,.xlsx,.xls,.txt" hidden>
               📄 <b>Click to choose a file</b> or drop it here
             </label>
-            <label class="lbl" for="paste">…or paste names (one per line, “Name, Team”)</label>
-            <textarea id="paste" class="input" dir="auto" placeholder="Mohamed Adel, Blue&#10;Hossam Mohamed, Green&#10;سارة أحمد, Blue"></textarea>
+            <label class="lbl" for="paste">…or paste names (one per line)</label>
+            <textarea id="paste" class="input" dir="auto" placeholder="Mohamed Adel&#10;Hossam Mohamed&#10;سارة أحمد"></textarea>
             <div class="row" style="margin-top:10px">
               <select id="upMode" class="mini" style="padding:10px">
                 <option value="append">Add to this class</option>
@@ -160,12 +165,10 @@
             <div class="row">
               <input id="addName" class="input" style="flex:1;min-width:180px;font-size:1rem" placeholder="Full name" dir="auto">
               <select id="addClass" class="mini" style="padding:10px"></select>
-              <select id="addTeam" class="mini" style="padding:10px"><option value="Blue">🔵 Blue</option><option value="Green">🟢 Green</option></select>
               <button class="btn btn-blue" id="btnAdd">Add</button>
             </div>
             <h2 style="margin-top:22px">Teams</h2>
-            <p class="muted" style="margin-top:0" id="teamCounts"></p>
-            <button class="btn btn-sm" id="btnAuto">Auto-assign students without a team</button>
+            <p class="muted" style="margin-top:0">Teams are made in the 🎮 Game tab <b>after</b> students join: press <b>🎲 Divide into teams</b>. A new random split is made for every game.</p>
           </div>
         </div>
         <div class="card" style="margin-top:16px">
@@ -177,7 +180,7 @@
           </div>
           <div class="tablewrap">
             <table class="tbl">
-              <thead><tr><th>Name</th><th>Class</th><th>Team</th><th>In current room</th><th>Points</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Class</th><th>In current room</th><th>Team (this game)</th><th>Points</th><th></th></tr></thead>
               <tbody id="stuBody"></tbody>
             </table>
           </div>

@@ -142,7 +142,18 @@
     const notJoined = list.filter(s => !s.joinedAt).sort((a, b) => a.name.localeCompare(b.name));
     $("joinedN").textContent = "(" + joined.length + ")";
     $("notJoinedN").textContent = "(" + notJoined.length + ")";
-    setHTML("joinedList", joined.map(s => '<span class="chip ' + (MBA.TEAM[s.team] || {}).cls + '" dir="auto"><span class="dot"></span>' + esc(s.name) + '</span>').join("") || '<span class="muted">Nobody yet.</span>');
+    const bySide = t => joined.filter(s => (s.team || "") === t);
+    const chip = s => '<span class="chip clickable ' + ((MBA.TEAM[s.team] || {}).cls || "") + '" data-id="' + esc(s.id) + '" title="Click to move to the other team" dir="auto"><span class="dot"></span>' + esc(s.name) + '</span>';
+    const group = (title, arr) => arr.length ? '<div style="width:100%;margin:6px 0 2px;font-weight:800">' + title + ' (' + arr.length + ')</div>' + arr.map(chip).join("") : "";
+    setHTML("joinedList", joined.length
+      ? group("⏳ Waiting for a team", bySide("")) + group("🔵 Blue – Number Ninjas", bySide("Blue")) + group("🟢 Green – Math Titans", bySide("Green"))
+      : '<span class="muted">Nobody yet.</span>');
+    const nB = bySide("Blue").length, nG = bySide("Green").length, nW = bySide("").length;
+    const lobby = T.settings.status === "lobby";
+    $("btnDivide").disabled = !joined.length || (!lobby && !nW);
+    $("btnDivide").textContent = (nB + nG) && lobby ? "🎲 Reshuffle teams" : "🎲 Divide into teams";
+    $("teamSplit").textContent = joined.length ? "🔵 " + nB + "  ·  🟢 " + nG + (nW ? "  ·  ⏳ " + nW + " waiting" : "") : "";
+    $("divideHint").textContent = !joined.length ? "" : nW && lobby ? "When everyone has joined, press Divide. Late joiners go to the smaller team automatically." : "Click a name to move it to the other team.";
     setHTML("notJoinedList", notJoined.map(s => '<span class="chip" dir="auto">' + esc(s.name) + '</span>').join("") || (list.length ? '<span class="muted">Everyone has joined 🎉</span>' : '<span class="muted">No students uploaded yet. Open the Students tab.</span>'));
   }
 
@@ -310,21 +321,14 @@
   function renderStudents() {
     const cf = $("stuClass").value;
     const shown = cf === "*" || cf === undefined ? T.students : T.students.filter(s => s.className === cf);
-    const counts = { Blue: 0, Green: 0, none: 0 };
-    shown.forEach(s => { if (counts[s.team] !== undefined) counts[s.team]++; else counts.none++; });
-    $("teamCounts").innerHTML = (cf && cf !== "*" ? "<b>" + esc(cf) + "</b>: " : "") + "🔵 Blue: <b>" + counts.Blue + "</b> &nbsp; 🟢 Green: <b>" + counts.Green + "</b> &nbsp; Without team: <b>" + counts.none + "</b>";
-    $("btnAuto").disabled = !T.students.some(s => !MBA.TEAM[s.team]);
     $("stuN").textContent = "(" + shown.length + ")";
     const tbody = $("stuBody");
-    if (tbody.contains(document.activeElement) && document.activeElement.tagName === "SELECT") return;
     const f = MBA.normName($("stuFilter").value);
     const rows = shown.filter(s => !f || MBA.normName(s.name).includes(f)).sort((a, b) => a.name.localeCompare(b.name));
     const html = rows.map(s =>
       '<tr data-id="' + esc(s.id) + '"><td dir="auto"><b>' + esc(s.name) + '</b></td><td>' + (s.className ? esc(s.className) : '<span class="muted">—</span>') + '</td>' +
-      '<td><select class="mini" data-act="team"><option value=""' + (!MBA.TEAM[s.team] ? " selected" : "") + '>— choose —</option>' +
-      '<option value="Blue"' + (s.team === "Blue" ? " selected" : "") + '>🔵 Blue – Number Ninjas</option>' +
-      '<option value="Green"' + (s.team === "Green" ? " selected" : "") + '>🟢 Green – Math Titans</option></select></td>' +
       '<td>' + (s.joinedAt ? '<span class="st correct">joined</span>' : '<span class="muted">not joined</span>') + '</td>' +
+      '<td>' + (s.joinedAt ? (MBA.TEAM[s.team] ? teamChip(s.team) : '<span class="muted">waiting</span>') : '') + '</td>' +
       '<td>' + s.score + '</td>' +
       '<td><div class="row" style="flex-wrap:nowrap;gap:6px">' + (s.joinedAt ? '<button class="btn btn-sm btn-ghost" data-act="release" title="Let this student join again from another device">Release</button>' : '') +
       '<button class="btn btn-sm btn-red" data-act="remove">Remove</button></div></td></tr>'
@@ -340,11 +344,18 @@
     try { const r = await call("removeClass", { className: c }); MBA.toast(r.removed + " students removed"); $("stuClass").value = "*"; } catch (e) { }
   });
 
-  $("stuBody").addEventListener("change", async e => {
-    if (e.target.dataset.act !== "team") return;
-    const id = e.target.closest("tr").dataset.id;
-    e.target.blur();
-    try { await call("setTeam", { studentId: id, team: e.target.value }, "Team saved"); } catch (err) { }
+  $("joinedList").addEventListener("click", async e => {
+    const c = e.target.closest(".chip[data-id]"); if (!c || !T) return;
+    const st = T.students.find(s => s.id === c.dataset.id); if (!st) return;
+    const to = st.team === "Blue" ? "Green" : "Blue";
+    try { await call("setTeam", { studentId: st.id, team: to }, st.name + " → " + MBA.TEAM[to].label); } catch (err) { }
+  });
+  $("btnDivide").addEventListener("click", async () => {
+    const lobby = T && T.settings.status === "lobby";
+    const hasTeams = T && roomStudents().some(s => s.joinedAt && MBA.TEAM[s.team]);
+    if (lobby && hasTeams && !confirm("Make a NEW random split of all joined students?")) return;
+    $("btnDivide").disabled = true;
+    try { const r = await call("divideTeams", {}); MBA.toast("Teams ready: 🔵 " + r.counts.Blue + " vs 🟢 " + r.counts.Green); } catch (e) { }
   });
   $("stuBody").addEventListener("click", async e => {
     const b = e.target.closest("button[data-act]"); if (!b) return;
@@ -363,13 +374,11 @@
     const name = $("addName").value.trim();
     if (!name) return;
     try {
-      const r = await call("addStudent", { name, team: $("addTeam").value, className: $("addClass").value });
+      const r = await call("addStudent", { name, className: $("addClass").value });
       if (r.added) { MBA.toast(name + " added"); $("addName").value = ""; } else MBA.toast("That name is already on the list.", true);
     } catch (e) { }
   });
-  $("btnAuto").addEventListener("click", async () => {
-    try { const r = await call("autoTeams", {}); MBA.toast(r.changed + " students assigned"); } catch (e) { }
-  });
+
 
   /* ---------------- upload (CSV / Excel / paste) ---------------- */
   function parseCSV(text) {
@@ -416,8 +425,7 @@
   function setPending(list, source) {
     pendingRows = list;
     $("btnUpload").disabled = !list.length;
-    const withTeam = list.filter(s => /blue|green|ازرق|أزرق|اخضر|أخضر/i.test(s.team)).length;
-    $("upPreview").textContent = list.length ? list.length + " names found in " + source + " (" + withTeam + " with a team)" : "No names found.";
+    $("upPreview").textContent = list.length ? list.length + " names found in " + source : "No names found.";
   }
 
   function loadSheetJS() {

@@ -68,8 +68,7 @@
       const first = s.name.split(" ")[0];
       const rest = s.name.slice(first.length);
       const hl = '<mark>' + MBA.esc(first.slice(0, nq)) + '</mark>' + MBA.esc(first.slice(nq)) + MBA.esc(rest);
-      const t = MBA.TEAM[s.team];
-      const right = s.joined ? '<span class="muted">already joined</span>' : (t ? '<span class="chip ' + t.cls + '"><span class="dot"></span>' + t.label + '</span>' : '<span class="muted">no team yet</span>');
+      const right = s.joined ? '<span class="muted">already joined</span>' : '<span class="muted">tap to choose</span>';
       return '<button type="button" class="sugg' + (s.joined ? ' taken' : '') + '" data-id="' + MBA.esc(s.id) + '" dir="auto"><span>' + hl + '</span>' + right + '</button>';
     }).join("");
   }
@@ -89,11 +88,10 @@
   function renderChosen() {
     const box = $("selected");
     if (!chosen) { box.hidden = true; $("btnJoin").disabled = true; return; }
-    const t = MBA.TEAM[chosen.team];
-    box.className = "selected-name " + (t ? t.cls : "");
-    box.innerHTML = MBA.esc(chosen.name) + '<br><span style="font-size:1rem">' + (t ? t.emoji + " " + t.label + " – " + t.name : "No team yet — ask your teacher") + '</span>';
+    box.className = "selected-name";
+    box.innerHTML = MBA.esc(chosen.name) + '<br><span style="font-size:1rem">⚔️ Your team will be chosen after you join</span>';
     box.hidden = false;
-    $("btnJoin").disabled = !t;
+    $("btnJoin").disabled = false;
     msg("");
   }
 
@@ -118,14 +116,16 @@
 
   /* ---------------- game ---------------- */
   function enterGame() {
-    const t = MBA.TEAM[session.team] || MBA.TEAM.Blue;
-    $("lobbyCard").className = "card lobby-card " + t.cls;
-    $("lobbyMascot").src = t.img;
+    const t = MBA.TEAM[session.team];
+    $("lobbyCard").className = "card lobby-card " + (t ? t.cls : "");
+    $("lobbyMascot").hidden = !t; $("lobbyVs").hidden = !!t;
+    if (t) $("lobbyMascot").src = t.img;
     $("lobbyName").textContent = "Welcome, " + session.name + "!";
-    $("lobbyTeam").textContent = t.emoji + " " + t.label + " – " + t.name;
+    $("lobbyTeam").textContent = t ? t.emoji + " " + t.label + " – " + t.name : "⚔️ Teams are chosen soon…";
+    $("lobbyWait").textContent = t ? "Waiting for your teacher to start" : "Waiting for your teacher to divide the teams";
     $("lobbyRoom").textContent = "Room " + session.code;
-    $("hudMe").className = "me " + t.cls;
-    $("hudImg").src = t.img;
+    $("hudMe").className = "me " + (t ? t.cls : "");
+    $("hudImg").src = t ? t.img : "assets/img/favicon.svg";
     $("hudName").textContent = session.name;
     if (!state) show("scr-lobby");
     poll.start();
@@ -163,7 +163,11 @@
     if (!s) return;
     const me = s.players.find(p => p.id === session.id);
     if (!me) { leave("Your name was released by the teacher. Please join again."); return; }
-    if (me.team !== session.team) { session.team = me.team; LS.set("mba_session", session); enterGame(); }
+    if (me.team !== session.team) {
+      const firstReveal = !session.team && me.team;
+      session.team = me.team; LS.set("mba_session", session); enterGame();
+      if (firstReveal) revealTeam(me.team);
+    }
     $("hudPts").textContent = me.score + " pts";
     MBA.animateNumber($("msBlue"), s.teams.Blue);
     MBA.animateNumber($("msGreen"), s.teams.Green);
@@ -252,13 +256,21 @@
     }
   }
 
+  function revealTeam(team) {
+    const t = MBA.TEAM[team]; if (!t) return;
+    const card = $("lobbyCard");
+    card.classList.remove("reveal"); void card.offsetWidth; card.classList.add("reveal");
+    MBA.confetti(team === "Blue" ? ["#2f8cff", "#8cc4ff", "#fff"] : ["#22d36f", "#8ff0b6", "#fff"], 2500);
+    if (navigator.vibrate) try { navigator.vibrate(200); } catch (e) { }
+  }
+
   function showEnd(me) {
     show("scr-end");
     const s = state;
     const w = s.winner;
     const t = MBA.TEAM[w];
     $("endCard").className = "card end-card " + (t ? t.cls : "");
-    $("endMascot").src = t ? t.img : MBA.TEAM[session.team].img;
+    $("endMascot").src = t ? t.img : (MBA.TEAM[session.team] || MBA.TEAM.Blue).img;
     $("endTitle").textContent = t ? t.name + " WIN! 🏆" : "IT'S A TIE! 🤝";
     $("endBlue").textContent = s.teams.Blue;
     $("endGreen").textContent = s.teams.Green;

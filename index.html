@@ -43,11 +43,12 @@
     <section id="scr-lobby" class="screen">
       <div class="card lobby-card" id="lobbyCard">
         <div class="eyebrow">You are in!</div>
-        <img class="mascot" id="lobbyMascot" src="assets/img/ninja.svg" alt="">
+        <img class="mascot" id="lobbyMascot" src="assets/img/ninja.svg" alt="" hidden>
+        <div class="lobby-vs" id="lobbyVs"><img class="mascot team-blue" src="assets/img/ninja.svg" alt=""><span>VS</span><img class="mascot alt team-green" src="assets/img/titan.svg" alt=""></div>
         <h2 style="margin:4px 0" id="lobbyName"></h2>
         <div class="team-title" id="lobbyTeam"></div>
         <p class="muted" id="lobbyRoom"></p>
-        <p style="font-weight:800;font-size:1.15rem;margin:16px 0 0">Waiting for your teacher to start</p>
+        <p style="font-weight:800;font-size:1.15rem;margin:16px 0 0" id="lobbyWait">Waiting for your teacher to start</p>
         <div class="waiting"><i></i><i></i><i></i></div>
         <p class="muted" id="lobbyCount"></p>
       </div>
