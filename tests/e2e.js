@@ -33,6 +33,10 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   const html = await (await fetch(WEB + "assets/js/teacher.js")).text() + await (await fetch(WEB + "assets/js/common.js")).text() + await (await fetch(WEB + "teacher.html")).text();
   assert(!html.includes("Aa1234"));
   ok("password does not appear anywhere in the website code");
+  await teacher.waitForSelector("[data-automark].on");
+  await teacher.locator("[data-automark]").first().click();
+  await teacher.waitForFunction(() => [...document.querySelectorAll("[data-automark]")].every(b => !b.classList.contains("on")));
+  ok("automatic marking is ON by default; teacher switches it OFF for manual review");
 
   // upload students via paste
   await teacher.click('[data-tab="students"]');
@@ -277,12 +281,31 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await teacher.waitForFunction(() => document.getElementById("gcQ").textContent.startsWith("2/"));
   ok("teacher page refresh keeps login and game progress");
 
+  // automatic marking ON -> answer scored instantly
+  await teacher.click('[data-tab="review"]');
+  await teacher.locator("#tab-review [data-automark]").click();
+  await teacher.waitForFunction(() => document.querySelector("#tab-review [data-automark]").classList.contains("on"));
+  const before = Number(await teacher.textContent("#lsBlue"));
+  await studs[0].click('.ans[data-l="C"]');   // Q2 answer key is C
+  await teacher.waitForFunction(() => [...document.querySelectorAll("#reviewBody tr")].some(r => r.textContent.includes("Mohamed Adel") && r.classList.contains("correct")), null, { timeout: 15000 });
+  const row = teacher.locator("#reviewBody tr", { hasText: "Mohamed Adel" });
+  const secsQ2 = parseInt(await row.locator("td").nth(3).textContent());
+  const ptsQ2 = Number(await row.locator("td").nth(5).textContent());
+  const exp2 = secsQ2 <= 10 ? 100 : secsQ2 <= 20 ? 80 : secsQ2 <= 30 ? 60 : secsQ2 <= 45 ? 40 : 20;
+  assert.strictEqual(ptsQ2, exp2);
+  await teacher.waitForFunction(v => Number(document.getElementById("lsBlue").textContent) === v, before + exp2, { timeout: 15000 });
+  await studs[0].waitForFunction(() => document.getElementById("qStatus").textContent.includes("wait for the next question"));
+  ok("automatic marking ON: correct answer scored instantly (" + secsQ2 + " s = " + exp2 + " pts), team total updated");
+  await shot(teacher, "09b-teacher-automark");
+  const finalBlue = Number(await teacher.textContent("#lsBlue")), finalGreen = Number(await teacher.textContent("#lsGreen"));
+
   // end
+  await teacher.click('[data-tab="game"]');
   teacher.once("dialog", d => d.accept());
   await teacher.click('[data-cmd="end"]');
   await Promise.all(studs.map(p => p.waitForSelector("#scr-end.active")));
   await arena.waitForSelector("#stEnd:not([hidden])");
-  const win = blue > green + 25 ? "NUMBER NINJAS" : "MATH TITANS";
+  const win = finalBlue > finalGreen ? "NUMBER NINJAS" : "MATH TITANS";
   assert((await arena.textContent("#winTitle")).includes(win));
   ok("end game: winner celebration (" + win + ") on arena + students");
   await new Promise(r => setTimeout(r, 1200));

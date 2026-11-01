@@ -90,9 +90,12 @@ You can change it there at any time. It is never in the website code.
 
 ### During the game
 - Each question gives students 60 seconds. The whole game lasts 7 minutes. Press **Next ▶** to move on. Pause, Resume and Next are always at the top of the dashboard.
+- **⚡ Automatic marking (ON by default):** each answer is scored the moment it is submitted, using the answer key in the **Questions**
+  sheet, and team totals update right away. Turn the switch OFF (Game or Answer review tab) to mark answers yourself; turning it back ON
+  scores any answers still waiting.
 - **✅ Answer review tab:** each answer shows the student, team, chosen answer and seconds taken. Press **✓ Correct** or **✗ Incorrect** for each one,
   or use the button that marks every pending answer using the answer key. **↺ Undo** puts an answer back to pending. **Set** gives custom points.
-- Points are given only when you confirm an answer:
+- Points per correct answer:
 
   | Time | 0–10 s | 11–20 s | 21–30 s | 31–45 s | 46–60 s | Incorrect |
   |---|---|---|---|---|---|---|

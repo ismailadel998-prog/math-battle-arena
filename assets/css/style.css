@@ -367,6 +367,13 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .95rem; }
 .st { font-weight: 800; text-transform: uppercase; font-size: .8rem; }
 .st.pending { color: var(--muted); } .st.correct { color: #8ff0b6; } .st.incorrect { color: #ff8da1; } .st.adjusted { color: var(--gold); }
 .mini-input { width: 76px; padding: 6px 8px; border-radius: 8px; background: rgba(4,9,32,.7); border: 1px solid var(--line); }
+.automark { position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 52px; border-radius: 999px; cursor: pointer; font-weight: 800; font-size: .9rem; color: var(--text); background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+.automark .knob { position: absolute; left: 8px; width: 34px; height: 20px; border-radius: 999px; background: #3a4680; transition: background .2s; }
+.automark .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.automark.on { border-color: var(--green); background: rgba(34, 211, 111, .12); }
+.automark.on .knob { background: var(--green); }
+.automark.on .knob::after { transform: translateX(14px); }
+.automark .lbl-on { display: none; } .automark.on .lbl-on { display: inline; } .automark.on .lbl-off { display: none; }
 .qchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .qchip { padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
 .qchip.active { border-color: var(--gold); background: rgba(255, 204, 51, .15); }

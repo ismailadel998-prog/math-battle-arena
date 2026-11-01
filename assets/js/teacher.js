@@ -109,12 +109,29 @@
     $("tbStatus").className = "status-pill " + st.status;
     $("tbRoom").textContent = room ? "Room " + room.code : "";
     $("tbArena").href = arenaLink(room && room.code);
-    renderClasses(); renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
+    renderAuto(); renderClasses(); renderRoom(); renderControl(); renderCurQ(); renderReview(); renderStudents(); renderBoard();
     MBA.animateNumber($("lsBlue"), T.teams.Blue);
     MBA.animateNumber($("lsGreen"), T.teams.Green);
     const pending = T.submissions.filter(s => s.status === "pending").length;
     $("pendingBadge").hidden = !pending; $("pendingBadge").textContent = pending;
   }
+
+  function renderAuto() {
+    const on = T.settings.autoMark;
+    document.querySelectorAll("[data-automark]").forEach(b => b.classList.toggle("on", on));
+    $("autoHint").textContent = on
+      ? "Answers are scored automatically from the answer key the moment students submit. You can still change any row."
+      : "Automatic marking is off: mark each answer Correct or Incorrect to give points.";
+  }
+  document.querySelectorAll("[data-automark]").forEach(b => b.addEventListener("click", async () => {
+    if (!T) return;
+    const on = !T.settings.autoMark;
+    document.querySelectorAll("[data-automark]").forEach(x => { x.disabled = true; x.classList.toggle("on", on); });
+    try {
+      const r = await call("setAutoMark", { on });
+      MBA.toast(on ? "⚡ Automatic marking ON" + (r.changed ? " · " + r.changed + " waiting answers scored" : "") : "✋ Automatic marking OFF");
+    } catch (e) { } finally { document.querySelectorAll("[data-automark]").forEach(x => x.disabled = false); }
+  }));
 
   function renderRoom() {
     const room = T.room;

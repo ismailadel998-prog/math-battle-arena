@@ -17,6 +17,12 @@ const token = P({ action: "login", password: "Aa1234" }).token;
 assert(token);
 const T = b => P({ token, ...b });
 
+t("automatic marking is ON by default, and can be switched off", () => {
+  assert.strictEqual(T({ action: "teacherState" }).settings.autoMark, true);
+  assert.strictEqual(T({ action: "setAutoMark", on: false }).autoMark, false);
+  assert.strictEqual(T({ action: "teacherState" }).settings.autoMark, false);
+});
+
 t("6 default questions created", () => assert.strictEqual(T({ action: "teacherState" }).questions.length, 6));
 
 t("upload students, duplicates skipped (incl. Arabic spelling variants)", () => {
@@ -212,6 +218,36 @@ t("old sheets get the new className column added", () => {
   const data = rt.sheet("Students"); assert.strictEqual(data[0][5], "className");
   assert.strictEqual(rt.sheet("Rooms")[0][5], "className");
 });
+t("automatic marking: points given instantly from the answer key", () => {
+  const c = T({ action: "createRoom", name: "auto-mark", className: "Class 2" }).room.code;
+  T({ action: "setAutoMark", on: true });
+  const ss = T({ action: "teacherState" }).students.filter(s => s.className === "Class 2");
+  ss.forEach((s, i) => assert(P({ action: "join", code: c, studentId: s.id, deviceToken: "dev-am00000" + i }).ok));
+  T({ action: "divideTeams" });
+  T({ action: "control", cmd: "start" });
+  rt.advance(4000);
+  const right = P({ action: "submit", code: c, studentId: ss[0].id, deviceToken: "dev-am000000", qIndex: 0, answer: "B" });   // key B
+  rt.advance(10000);
+  const wrong = P({ action: "submit", code: c, studentId: ss[1].id, deviceToken: "dev-am000001", qIndex: 0, answer: "A" });
+  assert(right.ok && wrong.ok);
+  const subs = T({ action: "teacherState" }).submissions;
+  const r = subs.find(x => x.studentId === ss[0].id), w = subs.find(x => x.studentId === ss[1].id);
+  assert.strictEqual(r.status, "correct"); assert.strictEqual(r.points, 100);
+  assert.strictEqual(w.status, "incorrect"); assert.strictEqual(w.points, 0);
+  const pl = G({ action: "state", code: c });
+  assert.strictEqual(pl.teams[pl.players.find(p => p.id === ss[0].id).team] >= 100, true);
+  // teacher can still override
+  T({ action: "review", submissionId: w.id, status: "correct" });
+  assert.strictEqual(T({ action: "teacherState" }).submissions.find(x => x.id === w.id).points, 80);
+  // switching OFF leaves new answers pending; switching ON scores them
+  T({ action: "setAutoMark", on: false });
+  P({ action: "submit", code: c, studentId: ss[2].id, deviceToken: "dev-am000002", qIndex: 0, answer: "B" });
+  assert.strictEqual(T({ action: "teacherState" }).submissions.find(x => x.studentId === ss[2].id).status, "pending");
+  assert.strictEqual(T({ action: "setAutoMark", on: true }).changed, 1);
+  assert.strictEqual(T({ action: "teacherState" }).submissions.find(x => x.studentId === ss[2].id).status, "correct");
+  T({ action: "setAutoMark", on: false });
+});
+
 t("Start without dividing first: everyone still gets a team", () => {
   const c = T({ action: "createRoom", name: "auto", className: "Class 2" }).room.code;
   const ts = T({ action: "teacherState" }).students.filter(s => s.className === "Class 2");

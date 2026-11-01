@@ -216,7 +216,7 @@
     if (done) {
       box.classList.add("locked");
       box.querySelectorAll(".ans").forEach(b => { b.disabled = true; b.classList.toggle("picked", b.dataset.l === mine); });
-      $("qStatus").innerHTML = "✅ Answer locked" + (mine ? ": <b>" + mine + "</b>" : "") + " — your teacher will check it!";
+      $("qStatus").innerHTML = "✅ Answer locked" + (mine ? ": <b>" + mine + "</b>" : "") + (s.autoMark ? " — wait for the next question!" : " — your teacher will check it!");
     } else if (closed || sending) {
       box.classList.add("locked");
       box.querySelectorAll(".ans").forEach(b => b.disabled = true);

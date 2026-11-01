@@ -31,7 +31,7 @@ var SCHEMA = {
 
 var DEFAULT_SETTINGS = {
   currentRoom: '', status: 'lobby', qIndex: -1, qStartedAt: 0, gameStartedAt: 0,
-  pausedAt: 0, endedAt: 0, gameId: '', gameSeconds: CFG.GAME_SECONDS, questionSeconds: CFG.QUESTION_SECONDS
+  pausedAt: 0, endedAt: 0, gameId: '', autoMark: true, gameSeconds: CFG.GAME_SECONDS, questionSeconds: CFG.QUESTION_SECONDS
 };
 
 var DEFAULT_QUESTIONS = [
@@ -100,6 +100,7 @@ function route_(p) {
     case 'removeClass':  requireTeacher_(p); return removeClass_(p);
     case 'setTeam':      requireTeacher_(p); return setTeam_(p);
     case 'divideTeams':  requireTeacher_(p); return divideTeams_(p);
+    case 'setAutoMark':  requireTeacher_(p); return setAutoMark_(p, now);
     case 'removeStudent':requireTeacher_(p); return removeStudent_(p);
     case 'releaseStudent': requireTeacher_(p); return releaseStudent_(p);
     default: throw err_('UNKNOWN', 'Unknown action: ' + a);
@@ -195,6 +196,7 @@ function readSettings_() {
   st.currentRoom = String(st.currentRoom || '');
   st.status = String(st.status || 'lobby');
   st.gameId = String(st.gameId || '');
+  st.autoMark = !(st.autoMark === false || String(st.autoMark).toUpperCase() === 'FALSE');
   if (!st.gameSeconds) st.gameSeconds = CFG.GAME_SECONDS;
   if (!st.questionSeconds) st.questionSeconds = CFG.QUESTION_SECONDS;
   return st;
@@ -369,7 +371,7 @@ function publicState_(code, now) {
   var winner = '';
   if (st.status === 'ended') winner = snap.teams.Blue > snap.teams.Green ? 'Blue' : (snap.teams.Green > snap.teams.Blue ? 'Green' : 'Tie');
   return {
-    ok: true, serverNow: now, room: snap.room, status: st.status, gameId: st.gameId,
+    ok: true, serverNow: now, room: snap.room, status: st.status, gameId: st.gameId, autoMark: st.autoMark,
     qIndex: st.qIndex, qCount: snap.questions.length,
     question: showQ ? snap.questions[st.qIndex] : null,
     qElapsedMs: t.qElapsedMs, qSeconds: st.questionSeconds,
@@ -455,9 +457,14 @@ function submit_(p, now) {
     }
     var seconds = Math.min(st.questionSeconds, Math.floor(t.qElapsedMs / 1000));
     var team = str_(player.team);
+    var status = 'pending', points = 0, reviewedAt = '';
+    if (st.autoMark) {
+      var key = answerKey_(q);
+      if (key) { status = ans === key ? 'correct' : 'incorrect'; points = status === 'correct' ? pointsFor_(seconds) : 0; reviewedAt = now; }
+    }
     appendRows_('Submissions', [{
       submissionId: uid_('X'), roomCode: code, qIndex: q, studentId: sid, name: str_(player.name), team: team,
-      answer: ans, seconds: seconds, status: 'pending', points: 0, manual: false, submittedAt: now, reviewedAt: ''
+      answer: ans, seconds: seconds, status: status, points: points, manual: false, submittedAt: now, reviewedAt: reviewedAt
     }]);
     bump_();
     return { ok: true, answer: ans, seconds: seconds, qIndex: q };
@@ -762,5 +769,39 @@ function removeClass_(p) {
     rewriteAll_('Players', readRows_('Players').filter(function (r) { return ids[str_(r.studentId)]; }));
     bump_();
     return { ok: true, removed: all.length - keep.length };
+  });
+}
+
+/* ---------- automatic marking (uses the answer key in the Questions sheet) ---------- */
+
+function answerKey_(qIndex) {
+  var q = readRows_('Questions')[qIndex];
+  var k = q ? up_(q.answerKey) : '';
+  return ['A', 'B', 'C', 'D'].indexOf(k) >= 0 ? k : '';
+}
+
+function setAutoMark_(p, now) {
+  var on = p.on === true || String(p.on).toLowerCase() === 'true';
+  return withLock_(function () {
+    var st = readSettings_();
+    st.autoMark = on;
+    writeSettings_(st);
+    var changed = 0;
+    if (on && st.currentRoom) {          // score answers that are still waiting
+      var keys = readRows_('Questions').map(function (q) { return up_(q.answerKey); });
+      readRows_('Submissions').forEach(function (x) {
+        if (str_(x.roomCode) !== st.currentRoom || str_(x.status) !== 'pending') return;
+        var key = keys[Number(x.qIndex)];
+        if (['A', 'B', 'C', 'D'].indexOf(key) < 0) return;
+        x.status = up_(x.answer) === key ? 'correct' : 'incorrect';
+        x.points = x.status === 'correct' ? pointsFor_(x.seconds) : 0;
+        x.manual = false; x.reviewedAt = now;
+        updateRow_('Submissions', x);
+        changed++;
+      });
+      if (changed) saveScores_(st.currentRoom, now);
+    }
+    bump_();
+    return { ok: true, autoMark: on, changed: changed };
   });
 }

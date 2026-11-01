@@ -66,7 +66,7 @@
               </div>
             </div>
             <div class="card">
-              <h2>C · Game control</h2>
+              <div class="row" style="justify-content:space-between;margin-bottom:6px"><h2 style="margin:0">C · Game control</h2><button class="automark" data-automark title="Score answers instantly from the answer key"><span class="knob"></span><span class="lbl-on">⚡ Automatic marking: ON</span><span class="lbl-off">✋ Automatic marking: OFF</span></button></div>
               <div class="row" style="justify-content:space-between;margin-bottom:12px">
                 <div><div class="eyebrow">Question</div><div class="kpi" id="gcQ">–</div></div>
                 <div><div class="eyebrow">Question timer</div><div class="kpi" id="gcQT">–</div></div>
@@ -117,7 +117,8 @@
       <!-- REVIEW TAB -->
       <section class="tabpane" id="tab-review" hidden>
         <div class="card">
-          <h2>D · Answer review</h2>
+          <div class="row" style="justify-content:space-between;margin-bottom:6px"><h2 style="margin:0">D · Answer review</h2><button class="automark" data-automark title="Score answers instantly from the answer key"><span class="knob"></span><span class="lbl-on">⚡ Automatic marking: ON</span><span class="lbl-off">✋ Automatic marking: OFF</span></button></div>
+          <p class="muted" id="autoHint" style="margin:4px 0 12px"></p>
           <div class="qchips" id="qchips"></div>
           <div class="keyhint" id="keyhint" style="margin:12px 0"></div>
           <div class="row" style="margin-bottom:12px">
