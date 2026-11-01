@@ -1,3 +1,4 @@
 tests/screens/
 node_modules/
 *.zip
+student-lists/
