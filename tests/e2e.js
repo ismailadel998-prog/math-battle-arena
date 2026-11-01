@@ -77,11 +77,11 @@ const advance = ms => fetch(API + "/__advance?ms=" + ms);
   await teacher.selectOption("#qTime", "90");
   await new Promise(r => setTimeout(r, 1500));
   await teacher.selectOption("#bTime", "30");
-  await teacher.waitForFunction(() => document.getElementById("gTime").value === "720" && document.getElementById("pointsHint").textContent.includes("0–20 s = 100") && document.getElementById("pointsHint").textContent.includes("students see 1:30"), null, { timeout: 15000 });
+  await teacher.waitForFunction(() => document.getElementById("gTime").value === "600" && document.getElementById("pointsHint").textContent.includes("0–20 s = 100") && document.getElementById("pointsHint").textContent.includes("students see 1:30"), null, { timeout: 15000 });
   await new Promise(r => setTimeout(r, 2500));
   const st120 = await (await fetch(API + "/exec?action=state&code=" + code)).json();
-  assert.strictEqual(st120.qSeconds, 90); assert.strictEqual(st120.bonusSeconds, 30); assert.strictEqual(st120.gameSeconds, 720);
-  ok("teacher sets 1:30 per question + 30 s hidden bonus: game time 12 min, points 0–20 s = 100 …");
+  assert.strictEqual(st120.qSeconds, 90); assert.strictEqual(st120.bonusSeconds, 30); assert.strictEqual(st120.gameSeconds, 600);   // 5 questions x 2 min
+  ok("teacher sets 1:30 per question + 30 s hidden bonus: game time grows to 10 min (5 questions), points 0–20 s = 100 …");
   await teacher.selectOption("#qTime", "60");
   await new Promise(r => setTimeout(r, 1500));
   await teacher.selectOption("#bTime", "0");

@@ -144,7 +144,7 @@
   }
   function fitGameTime() {
     // keep all questions inside the game clock: suggest a game time that fits
-    const need = (Number($("qTime").value) + Number($("bTime").value)) * (T ? T.questions.length : 6);
+    const need = (Number($("qTime").value) + Number($("bTime").value)) * (T ? T.questions.length : 5);
     if (Number($("gTime").value) < need) { addOption($("gTime"), need); $("gTime").value = String(need); }
   }
   $("qTime").addEventListener("change", () => { fitGameTime(); saveTimes(); $("qTime").blur(); });

@@ -29,7 +29,7 @@ A live multiplayer math game for Grade 5 (Lesson 3-8: Solve Word Problems Using 
    - Google asks for permission: **Review permissions** → choose your account → **Advanced** → **Go to Untitled project (unsafe)** → **Allow**.
      (It says "unsafe" only because you wrote the script yourself and Google hasn't reviewed it.)
    - The log shows *Execution completed*. Back in your Sheet you will now see the tabs
-     **Students, Teams, Rooms, Players, Questions, Submissions, Scores, GameSettings**. The 6 questions are already in **Questions**.
+     **Students, Teams, Rooms, Players, Questions, Submissions, Scores, GameSettings**. The 5 questions are already in **Questions**.
 5. Click **Deploy → New deployment**. Click the ⚙️ gear next to "Select type" and choose **Web app**.
 6. Fill in:
    - Description: `Math Battle Arena`

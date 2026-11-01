@@ -42,8 +42,7 @@ var DEFAULT_QUESTIONS = [
   ['A stadium has 24 sections. Each section has 135 seats. How many seats are there in all?', '3,240', '159', '810', '32,400', 'A'],
   ['A factory packs 16 boxes. Each box holds 225 pencils. How many pencils are packed in all?', '241', '1,575', '36,000', '3,600', 'D'],
   // Lesson 3-8 part 3: More than one step (solve the hidden question first)
-  ['Hana has 38 stickers. Her brother has 6 times as many stickers as Hana. How many stickers do they have together?', '228', '44', '266', '190', 'C'],
-  ['A school buys 15 boxes of 24 markers and 15 boxes of 16 crayons. How many items did the school buy in all?', '360', '600', '55', '240', 'B']
+  ['Hana has 38 stickers. Her brother has 6 times as many stickers as Hana. How many stickers do they have together?', '228', '44', '266', '190', 'C']
 ];
 
 var TEAMS = [

@@ -23,7 +23,7 @@ t("automatic marking is ON by default, and can be switched off", () => {
   assert.strictEqual(T({ action: "teacherState" }).settings.autoMark, false);
 });
 
-t("6 default questions created", () => assert.strictEqual(T({ action: "teacherState" }).questions.length, 6));
+t("5 default questions created", () => assert.strictEqual(T({ action: "teacherState" }).questions.length, 5));
 
 t("upload students, duplicates skipped (incl. Arabic spelling variants)", () => {
   const r = T({ action: "uploadStudents", mode: "replace", students: [
